@@ -1,7 +1,7 @@
-attach("weight1_v3_post_talk.py")
-attach("EigenDecomp.py")
-attach("wt1_FC_v4_wMMMM.py")
-attach("potential_wt1.py")
+attach("weight1_compute.py")
+attach("weight1_FC.py")
+attach("weight1_decompose.py")
+attach("weight1_forms.py")
 
 CM = load("CM_forms.1-500")
 FC = weight_one_FC()
