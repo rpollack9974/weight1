@@ -19,7 +19,22 @@ def collect_wt1_data(Nmin,Nmax,sturm=None,verbose=false):
 			A = wt1(chi,log=log,verbose=verbose)
 			if verbose > 0:
 				print "time:",cputime(t)
+			file = open(log,'a')
+			file.write("time: "+str(cputime(t)))
+			file.close()
 
+def collect_wt1_data_quadratic(Nmin,Nmax,sturm=None,verbose=false):
+	t = cputime()
+	log = "DATA/wt1_quad."+str(Nmin)+"-"+str(Nmax)+".log"
+	for N in primes(Nmin,Nmax+1):
+		if N%4==3:
+			G = DirichletGroup(N,QQ)
+			chi = G.gens()[0]
+			if verbose > 0:
+				print "Working with level",N
+			A = wt1(chi,log=log,verbose=verbose)
+			if verbose > 0:
+				print "time:",cputime(t)
 
 
 def wt1(chi,sturm=None,log=None,verbose=false):
@@ -47,13 +62,18 @@ def wt1(chi,sturm=None,log=None,verbose=false):
 			file.write("Computing to higher precision"+'\n')
 			file.close()
 
+		if verbose > 2:
+			print "Computing to higher precision"
+		# WASTING LOTS OF TIME ABOVE RECMPUTING EVERYTHING
 		U = cut_down_to_unique(chi,sturm=strong_sturm,log=log,verbose=verbose)
 		ans = []
 		for f in U:
 			if verify(f,chi,log=log):
 				ans += [f]
 			else:
-				return f
+				if verbose > 2:
+					print "Did NOT verify"
+
 	if log != None:
 		file = open(log,'a')
 		file.write('-----------------------------\n')
@@ -115,7 +135,7 @@ def cut_down_to_unique(chi,sturm=None,log=None,verbose=false):
 				done = true
 			if done:
 				if verbose > 1:
-					print "  -nothing there"
+					print "  -nothing there after intersections"
 		if len(spaces) > 0:
 			unique = true
 			for Sq in spaces:
@@ -215,6 +235,8 @@ def verify(f,chi,log=None):
 	if bool:
 		print "Success!"
 		print f
+	else:
+		print "did not verify"
 
 	return bool
 
@@ -227,74 +249,49 @@ def wt1_space_modp(p,chi,verbose=False,sturm=None):
 		pp = K.prime_above(p)
 	else:
 		pp = ideal(p)
-	M = maximal_eigendoubled(chi,p,pp,sturm,verbose=verbose)
+	M = maximal_eigendoubled_Artin(chi,p,pp,sturm,verbose=verbose)
 	D = decompose(M,chi,sturm,[p],p)
 	D._pK = pp
 	D.remove_CM(chi)
 	return D
 
 
-
-
 ## 	M = ModularSymbols(chi,p,1,GF(p)).cuspidal_subspace()
-def maximal_eigendoubled(chi,p,pp,sturm,verbose=False):
+##  pp is prime over p in Q(chi)
+def maximal_eigendoubled_Artin(chi,p,pp,sturm,verbose=False):
 	if sturm == None:
 		sturm == STURM
 	N = chi.conductor()
-
-	# K = chi.base_ring()
-	# if K.degree() > 1:
-	# 	pp = K.prime_above(p)
-	# else:
-	# 	pp = ideal(p)
 
 	kk = pp.residue_field()
 	if verbose > 2:
 		print "Forming modsym space"
 	M = ModularSymbols(chi,p,1,kk).cuspidal_subspace().new_subspace()
-	if verbose > 2:
-		print "Dimension is",M.dimension()
 
 	if chi.order() == 2 and N.is_prime():
 		K = QuadraticField(-N)
 		C = K.class_group()
 		lb = (len(C)-1)/2
 	else:
-	############# NOT RIGHT HERE!!!
-		lb = 0
+		if CM.keys().count(chi)==0:
+			lb = 0
+		else:
+			lb = len(CM[chi])
 
 
 	N = chi.conductor()
 #	exclude = [q for q in primes(sturm) if N%q==0] + [p]
 	exclude = [p]
 	ell = 2
-	while (M.dimension() > 2*lb) and (ell<=sturm):  ## can we do better here in general?  Are exotic forms never over Q and thus always come in pairs?
+	while (M.dimension() >= 2*lb + 2*euler_phi(chi.order())) and (ell<=sturm):  
+	## can we do better here in general?  Are exotic forms never over Q and thus always come in pairs?
 		if exclude.count(ell) == 0:
-			M = maximal_eigendoubled_at_ell(M,ell,sturm,verbose=verbose)
-		if verbose > 2:
-			print "Dimension is",M.dimension()	
+			M = maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=verbose)
 		ell = next_prime(ell)
 
 	return M
 
-# def maximal_Artin(M,sturm,FC=None,verbose=False):
-# 	chi = M.character()
-# 	p = M.base_ring().characteristic()
-# 	if FC == None:
-# 		FC = weight_one_FC(chi)
-# 	lb = FC.lower_bound()  ## gives lower bound coming from CM forms
-# 	lb = 0 
-# 	N = chi.conductor()
-# 	exclude = [q for q in primes(sturm) if N%q==0] + [p]
-# 	ell = 2
-# 	while (M.dimension() > 2*lb) and (ell<=sturm):  ## can we do better here in general?  Are exotic forms never over Q and thus always come in pairs?
-# 		if exclude.count(ell) == 0:
-# 			M = maximal_Artin_at_ell(M,ell,sturm,FC=FC,verbose=verbose)
-# 		ell = next_prime(ell)
-# 	return M,ell<=sturm
-
-
-def maximal_eigendoubled_at_ell(M,ell,sturm,verbose=False):
+def maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=False):
 	p = M.base_ring().characteristic()
 	R = PolynomialRing(GF(p),'x')
 
@@ -303,97 +300,43 @@ def maximal_eigendoubled_at_ell(M,ell,sturm,verbose=False):
 	T_ell = M.hecke_operator(ell)
 	f_ell = T_ell.charpoly()
 	facts = f_ell.factor()
-#			if verbose:
-#				print "Factors to consider:",facts
 	if verbose > 2:
-		print "  Collecting irreducible factors with doubled socle"
+		print "  Collecting irreducible factors with doubled socle and Artin type	"
 	f_passed = 1
+	passed = false
 	for D in facts:
 		g = D[0]
 		e = D[1]
-#		if verbose:
-#			print "  testing",g
-#		if verbose and e == 1:
-#			print "     failed -- not doubled"
-		if e > 1:
-			socle = g.substitute(T_ell).kernel()
-			passed = socle.dimension() >= 2*g.degree()
-			if verbose > 2 and passed:
-				print "      ",g,"passed --- eigen-doubled"
-#				else:
-#					print "      failed --- doubled but not eigen-doubled"
+		if e > 1:  ## doubled
+			if verbose > 2:
+				print "    Poly =",g,"is doubled.  Checking Artin and eigen-doubled"
+			if chi.modulus() % ell != 0:
+				v = FC.possible_Artin_polys(g,chi(ell),p)
+			else:
+				v = FC.possible_Artin_polys(g,chi,p)
+			if len(v) > 0:  ## Artin type
+				socle = g.substitute(T_ell).kernel()
+				passed = socle.dimension() >= 2*g.degree()
+				if verbose > 2:
+					if passed:
+						print "      passed --- eigen-doubled and Artin"
+					else:
+						print "      not eigen-doubled"
+			else:
+				if verbose > 2:
+					print "      not Artin"
+				passed = false
 			if passed:
 				f_passed *= g**e
 	if f_passed != 1:
+		if verbose > 2:
+			print "Restricting to",f_passed.factor()
 		M = (f_passed.substitute(T_ell)).kernel()
 	else:
 		M = M.zero_submodule()
+
 	return M
 
-# def maximal_Artin_at_ell(M,ell,sturm,FC=None,verbose=False):
-# 	p = M.base_ring().characteristic()
-# 	R = PolynomialRing(GF(p),'x')
-
-# 	if verbose:
-# 		print "Using T_",ell,"on",M.dimension(),"-dimensional space"
-# 	T_ell = M.hecke_operator(ell)
-# 	f_ell = T_ell.charpoly()
-# 	facts = f_ell.factor()
-# #			if verbose:
-# #				print "Factors to consider:",facts
-# 	if verbose:
-# 		print "  Collecting irreducible factors of Artin type (counting Galois conjugates over Q)"
-# 	f_passed = 1
-# 	for D in facts:
-# 		g = D[0]
-# 		e = D[1]
-# #		if verbose:
-# #			print "  testing",g
-# #		if verbose and e == 1:
-# #			print "     failed -- not doubled"
-# 		polys = FC.Artin_polys(g,ell,p,G='exotic')  ## returns list of global Artin min polys which have g as a factor mod p
-# 		passed = false
-# 		j = 0
-# 		while not passed and j < len(polys):
-# 			Q = polys[j]
-# 			passed = f_ell % R(Q) == 0
-# 			j = j + 1
-# 		if verbose and passed:
-# 			print "    ",g,"passed"
-# 		if passed:
-# 			f_passed *= g**e
-# 	if f_passed != 1:
-# 		M = (f_passed.substitute(T_ell)).kernel()
-# 	else:
-# 		M = M.zero_submodule()
-# 	return M
-
-# def form_CM_prime_FC(chi,psi,max,exclude):
-# 	N = chi.conductor()
-# 	assert chi.order() == 2
-
-# 	K = QuadraticField(-N)
-# 	C = K.class_group()
-# 	Cd = C.dual_group()
-# 	FC = {}
-# 	for q in primes(max):
-# 		if exclude.count(q) == 0:
-# 			qs = K.primes_above(q)
-# 			if N % q != 0:
-# 				if len(qs) == 1:
-# 					FC[q] = 0
-# 				else:
-# 					FC[q] = psi(C(qs[0]))+psi(C(qs[1]))
-# 			else:
-# 				FC[q] = psi(C(qs[0]))
-# 	return FC
-
-# def reduce(d,pp):
-# 	k = pp.residue_field()
-# 	ans = {}
-# 	for q in d.keys():
-# 		ans[q] = k(d[q]).minpoly()
-# 	return ans
 
 ## no steinberg primes not dividing conductor
 def no_steinberg(chi):

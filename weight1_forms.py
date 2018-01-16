@@ -397,6 +397,8 @@ class weight_one_form(SageObject):
 		if self.phi() == None:
 			L = self._pL.ring()
 			K = chi(1).parent()
+			if K == QQ:
+				K = CyclotomicField(2)
 			pK = self.space()._pK
 			pL = self._pL
 			kK = pK.residue_field()

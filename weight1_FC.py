@@ -1,3 +1,21 @@
+from sage.structure.sage_object import SageObject
+
+###########################################################
+##  DEFINE THE HECKE EIGENVALUES OF WEIGHT 1 FORMS CLASS ##
+###########################################################
+
+######################################################################################################
+##				
+##  This class computes and stores the Hecke eigenvalues of weight 1 forms.  The key point is that
+##  for a weight 1 eigenform f with nebentype chi, its Hecke eigenvalues at a prime ell not dividing 
+##  the level N is one of the following algebraic numbers:
+##
+##  		sqrt(c chi(ell))
+##
+##  for c = 0,1,2,4.  [Buzzard-Lauder, Lemma 1]
+##                                                                                               
+######################################################################################################
+
 class weight_one_FC(SageObject):
 	def __init__(self):
 		self._minpolys = {}
