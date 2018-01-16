@@ -2,6 +2,7 @@
 STURM = 30
 
 def collect_wt1_data(Nmin,Nmax,sturm=None,verbose=false):
+	t = cputime()
 	log = "DATA/wt1."+str(Nmin)+"-"+str(Nmax)+".log"
 	for N in range(Nmin,Nmax+1):
 		G = DirichletGroup(N)
@@ -16,6 +17,8 @@ def collect_wt1_data(Nmin,Nmax,sturm=None,verbose=false):
 			if verbose > 0:
 				print "Working with",chi
 			A = wt1(chi,log=log,verbose=verbose)
+			if verbose > 0:
+				print "time:",cputime(t)
 
 
 
