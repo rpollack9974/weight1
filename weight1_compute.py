@@ -292,8 +292,10 @@ def maximal_eigendoubled_Artin(chi,p,pp,sturm,verbose=False):
 	return M
 
 def maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=False):
+	N = chi.modulus()
 	p = M.base_ring().characteristic()
 	R = PolynomialRing(GF(p),'x')
+	x = R.gen()
 
 	if verbose > 2:
 		print "Using T_",ell,"on",M.dimension(),"-dimensional space"
@@ -310,10 +312,15 @@ def maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=False):
 		if e > 1:  ## doubled
 			if verbose > 2:
 				print "    Poly =",g,"is doubled.  Checking Artin and eigen-doubled"
+
 			if chi.modulus() % ell != 0:
 				v = FC.possible_Artin_polys(g,chi(ell),p)
-			else:
+			elif N.valuation(ell) == chi.conductor().valuation(ell):
 				v = FC.possible_Artin_polys(g,chi,p)
+			elif  g == x:
+				v = [x]
+			else:
+				v = []
 			if len(v) > 0:  ## Artin type
 				socle = g.substitute(T_ell).kernel()
 				passed = socle.dimension() >= 2*g.degree()
