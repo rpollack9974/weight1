@@ -2,16 +2,20 @@
 STURM = 30
 
 def collect_wt1_data(Nmin,Nmax,sturm=None,verbose=false):
+	log = "DATA/wt1."+str(Nmin)+"-"+str(Nmax)+".log"
 	for N in range(Nmin,Nmax+1):
 		G = DirichletGroup(N)
 		Gc = G.galois_orbits()
-		for psi in Gc:
-			chi = psi[0]
+		Gc = [psi[0] for psi in Gc if psi[0](-1)==-1 and no_steinberg(psi[0])]
+		if verbose > 0:
+			print "Working with level",N
+			print " There are",len(Gc),"spaces to consider"
+		for chi in Gc:
 			chi = convert_character_to_database(chi)
 			chi = chi.minimize_base_ring()
-			if chi(-1)==-1 and no_steinberg(chi):
-				log = "DATA/wt1."+str(Nmin)+"-"+str(Nmax)+".log"
-				A = wt1(chi,log=log,verbose=verbose)
+			if verbose > 0:
+				print "Working with",chi
+			A = wt1(chi,log=log,verbose=verbose)
 
 
 
@@ -76,7 +80,7 @@ def cut_down_to_unique(chi,sturm=None,log=None,verbose=false):
 #			if p>3:
 #				print chi
 #				print "p =",p
-			if verbose:
+			if verbose > 1:
 				print "  p =",p
 			if log != None:
 				file = open(log,'a')
@@ -88,7 +92,7 @@ def cut_down_to_unique(chi,sturm=None,log=None,verbose=false):
 				tried_two = true
 			tried_one = true
 			if Dp.num_spaces() > 0:
-				if verbose:
+				if verbose > 1:
 					print "  -Found something"
 				if log != None:
 					file = open(log,'a')
@@ -105,11 +109,9 @@ def cut_down_to_unique(chi,sturm=None,log=None,verbose=false):
 				for Sq in spaces:
 					done = done or not Sq.is_nontrivial()
 			else:
-				if verbose:
-					print "  -nothing there"
 				done = true
 			if done:
-				if verbose:
+				if verbose > 1:
 					print "  -nothing there"
 		if len(spaces) > 0:
 			unique = true
@@ -121,7 +123,7 @@ def cut_down_to_unique(chi,sturm=None,log=None,verbose=false):
 	if done:
 		if log != None:
 			file = open(log,'a')
-			file.write("\nWeight 1 space is empty"+'\n')
+			file.write("\nWeight 1 space has no exotic forms"+'\n')
 			file.close()
 		return weight_one_space([])
 	else:		
@@ -244,10 +246,10 @@ def maximal_eigendoubled(chi,p,pp,sturm,verbose=False):
 	# 	pp = ideal(p)
 
 	kk = pp.residue_field()
-	if verbose:
+	if verbose > 2:
 		print "Forming modsym space"
 	M = ModularSymbols(chi,p,1,kk).cuspidal_subspace().new_subspace()
-	if verbose:
+	if verbose > 2:
 		print "Dimension is",M.dimension()
 
 	if chi.order() == 2 and N.is_prime():
@@ -266,7 +268,7 @@ def maximal_eigendoubled(chi,p,pp,sturm,verbose=False):
 	while (M.dimension() > 2*lb) and (ell<=sturm):  ## can we do better here in general?  Are exotic forms never over Q and thus always come in pairs?
 		if exclude.count(ell) == 0:
 			M = maximal_eigendoubled_at_ell(M,ell,sturm,verbose=verbose)
-		if verbose:
+		if verbose > 2:
 			print "Dimension is",M.dimension()	
 		ell = next_prime(ell)
 
@@ -293,14 +295,14 @@ def maximal_eigendoubled_at_ell(M,ell,sturm,verbose=False):
 	p = M.base_ring().characteristic()
 	R = PolynomialRing(GF(p),'x')
 
-	if verbose:
+	if verbose > 2:
 		print "Using T_",ell,"on",M.dimension(),"-dimensional space"
 	T_ell = M.hecke_operator(ell)
 	f_ell = T_ell.charpoly()
 	facts = f_ell.factor()
 #			if verbose:
 #				print "Factors to consider:",facts
-	if verbose:
+	if verbose > 2:
 		print "  Collecting irreducible factors with doubled socle"
 	f_passed = 1
 	for D in facts:
@@ -313,7 +315,7 @@ def maximal_eigendoubled_at_ell(M,ell,sturm,verbose=False):
 		if e > 1:
 			socle = g.substitute(T_ell).kernel()
 			passed = socle.dimension() >= 2*g.degree()
-			if verbose and passed:
+			if verbose > 2 and passed:
 				print "      ",g,"passed --- eigen-doubled"
 #				else:
 #					print "      failed --- doubled but not eigen-doubled"
