@@ -83,67 +83,86 @@ def wt1(chi,sturm=None,log=None,verbose=false):
 	return ans
 
 
-def cut_down_to_unique(chi,sturm=None,log=None,verbose=false):
-### get character to agree with Buzzard-Lauder
+def add_on_another_prime(chi,spaces,p,sturm=None,log=None,verbose=false):
 	if sturm == None:
 		sturm = STURM
 	N = chi.modulus()
-	ps = []
-	tried_one = false
-	tried_two = false
+	if verbose > 1:
+		print "Working with p =",p
+	if log != None:
+		file = open(log,'a')
+		file.write(" Working with p = "+str(p)+": ")
+		file.close()
+
+	Dp = wt1_space_modp(p,chi,sturm=sturm,verbose=verbose)
+	if Dp.num_spaces() > 0:
+		if verbose > 1:
+			print "  -Found something"
+		if log != None:
+			file = open(log,'a')
+			file.write("found something"+'\n')
+			file.close()
+		Sp = Dp.wt1_space(sturm=sturm)
+		for Sq in spaces:
+			Sp = Sp.intersect(Sq)
+		for i in range(len(spaces)):
+			spaces[i] = spaces[i].intersect(Sp) ## once more?
+		spaces += [Sp]
+		return spaces
+	else:
+		return []
+
+def trim_down_spaces(chi,spaces):
+	new_spaces = []
+	for Sp in spaces:
+		ans = []
+		for f in Sp.forms():
+			if ans.count(f) == 0:  # form hasn't been added yet
+				m = min([S.multiplicity(f) for S in spaces])
+				if m * euler_phi(chi.order()) >= f.degree():
+					ans += [f]
+					### SHOULD THINK THRU THIS -- PROBABLY FINE
+					assert m * euler_phi(chi.order()) == f.degree(), "haven't thought about this"
+		new_spaces += [weight_one_space(ans)]
+
+	return new_spaces
+
+
+def cut_down_to_unique(chi,sturm=None,log=None,verbose=false):
+### get character to agree with Buzzard-Lauder (Huh?)
+	if sturm == None:
+		sturm = STURM
+	N = chi.modulus()
 	unique = false
-	done = false
+	empty = false
+	started = false
 
 	p = ZZ(3)
 	j = 0
 	spaces = []
 
-	while not done and (not unique or not tried_two):	
+	while (not empty and not unique) or not started:
 		if gcd(p,chi.modulus())==1:
-#			if p>3:
-#				print chi
-#				print "p =",p
+			spaces = add_on_another_prime(chi,spaces,p,sturm=sturm,log=log,verbose=verbose)
+			started = true
+			if len(spaces) == 0:
+				empty = true
+			for Sq in spaces:
+				empty = empty or not Sq.is_nontrivial()
+		if empty and started:
 			if verbose > 1:
-				print "  p =",p
-			if log != None:
-				file = open(log,'a')
-				file.write(" Working with p = "+str(p)+": ")
-				file.close()
-
-			Dp = wt1_space_modp(p,chi,sturm=sturm,verbose=verbose)
-			if tried_one:
-				tried_two = true
-			tried_one = true
-			if Dp.num_spaces() > 0:
-				if verbose > 1:
-					print "  -Found something"
-				if log != None:
-					file = open(log,'a')
-					file.write("found something"+'\n')
-					file.close()
-				# if FC == None:
-				# 	FC = weight_one_FC(chi)
-				Sp = Dp.wt1_space(sturm=sturm)
-				for Sq in spaces:
-					Sp = Sp.intersect(Sq)
-				for i in range(len(spaces)):
-					spaces[i] = spaces[i].intersect(Sp) ## once more?
-				spaces += [Sp]
-				for Sq in spaces:
-					done = done or not Sq.is_nontrivial()
-			else:
-				done = true
-			if done:
-				if verbose > 1:
-					print "  -nothing there after intersections"
-		if len(spaces) > 0:
+				print "  -nothing there after intersections"
+			spaces = []
+		elif started:
 			unique = true
 			for Sq in spaces:
 				unique = unique and Sq.unique()
 		p = next_prime(p)
 		p = ZZ(p)
 
-	if done:
+
+
+	if empty:
 		if log != None:
 			file = open(log,'a')
 			file.write("\nWeight 1 space has no exotic forms"+'\n')
@@ -151,19 +170,8 @@ def cut_down_to_unique(chi,sturm=None,log=None,verbose=false):
 		return weight_one_space([])
 	else:		
 		### gets rid of multiplicity (counted carefully by Galois)
-		new_spaces = []
-		for Sp in spaces:
-			ans = []
-			for f in Sp.forms():
-				if ans.count(f) == 0:
-					m = min([S.multiplicity(f) for S in spaces])
-					if m * euler_phi(chi.order()) >= f.degree():
-						ans += [f]
-						### PROBLEM EHRE!!!
-						assert m * euler_phi(chi.order()) == f.degree(), "haven't thought about this"
-			new_spaces += [weight_one_space(ans)]
+		spaces = trim_down_spaces(chi,spaces)
 
-		spaces = new_spaces
 		ans = []
 		for i in range(spaces[0].num_forms()): #all spaces should now be identical in hecke polys
 			f = spaces[0][i]
@@ -171,19 +179,31 @@ def cut_down_to_unique(chi,sturm=None,log=None,verbose=false):
 			poly = 1
 			for q in f.primes():
 				poly *= f[q][0]
-			L = poly.splitting_field('a')
+			Lf = poly.splitting_field('a')
 			p_found = false
 			r = 0
 			while (not p_found) and (r < len(spaces)):
 				p = spaces[r][i].space().p
-				if L.disc() % p != 0:
+				if Lf.disc() % p != 0:
 					g = spaces[r][i]
 					assert f==g,"should have been same form.  whawt is going on?"
 					p_found = true
+					ans += [g]
 				else:
 					r += 1
-			assert p_found, "no unramified prime!  need to compute more p's"
-			ans += [g]
+			if not p_found: # "no unramified prime!  need to compute more p's"
+				if verbose > 1:
+					print "No unramified prime: need more primes!"
+				while Lf.disc() % p == 0:
+					p = next_prime(p)
+				spaces_aug = add_on_another_prime(chi,spaces,p,sturm=sturm,log=log,verbose=verbose)
+				if len(spaces_aug) > 0:
+					spaces_aug = trim_down_spaces(chi,spaces)
+					g = spaces_aug[len(spaces_aug)-1][i]
+					ans += [g]
+				else:
+					if verbose > 1:
+						print "  -nothing there after intersection"
 
 		return weight_one_space(ans)
 
@@ -252,7 +272,8 @@ def wt1_space_modp(p,chi,verbose=False,sturm=None):
 	M = maximal_eigendoubled_Artin(chi,p,pp,sturm,verbose=verbose)
 	D = decompose(M,chi,sturm,[p],p)
 	D._pK = pp
-	D.remove_CM(chi)
+	D.remove_CM()
+#	D.remove_non_Artin()
 	return D
 
 

@@ -111,7 +111,8 @@ class EigenDecomp(SageObject):
 		return occurs,j-1
 
 
-	def remove_CM(self,chi):
+	def remove_CM(self):
+		chi = self.chi()
 		if self.num_spaces() == 0 or CM.keys().count(chi)==0:
 			return self			
 		else:
@@ -134,7 +135,31 @@ class EigenDecomp(SageObject):
 					self.remove(self[ind])
 #					print "removed CM at",chi
 
-					
+	def remove_non_Artin(self):
+		chi = self.chi()
+		sturm = STURM
+		for r in range(self.num_spaces()):
+			h = self.hecke_polys()
+			R = h[2].parent()
+			x = R.gen()
+			remove = false
+			q = 2
+			while not remove and q < sturm:
+				if chi.modulus() % q != 0:
+					v = FC.possible_Artin_polys(h[q],chi(q),p)
+				elif N.valuation(q) == chi.conductor().valuation(q):
+					v = FC.possible_Artin_polys(g,chi,p)
+				elif h[q] == x:
+					v = [x]
+				else:
+					v = []
+				v = [P for P in v if P.degree() <= M.dimension()]  ## weak galois conjugate check
+				remove = len(v) == 0
+				q = next_prime(q)
+			if remove:
+				self.remove(self[q])
+
+
 	def remove_eisen(self,chi):
 		if self.num_spaces() == 0:
 			return self
@@ -185,6 +210,15 @@ class EigenDecomp(SageObject):
 #				print "Failed at",p
 
 #		assert not fail, "No lift!"
+
+		### mild galois conjugate check
+		for q in h0.keys():
+			if q != p:
+#				print "old:",h0[q]
+				h0[q] = [P for P in h0[q] if 2 * P.degree() <= self.dimension() * euler_phi(chi.order())]  ## is this right at p?
+#				print "new:",h0[q]
+#				print "dim =",self.dimension()
+
 		return weight_one_form(chi,h0,space=EigenDecomp(self[j],self.chi(),self._pK)),not fail
 
 
