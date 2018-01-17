@@ -9,13 +9,23 @@ def collect_wt1_data(Nmin,Nmax,sturm=None,verbose=false):
 		Gc = G.galois_orbits()
 		Gc = [psi[0] for psi in Gc if psi[0](-1)==-1 and no_steinberg(psi[0])]
 		if verbose > 0:
+			print "----------------------------------------------------"
 			print "Working with level",N
 			print " There are",len(Gc),"spaces to consider"
+		file = open(log,'a')
+		file.write("\n------------------------------------------------\n")
+		file.write("Working with level "+str(N)+"\n")
+		file.write(" There are "+str(len(Gc))+" spaces to consider\n")
+		file.close()
+
 		for chi in Gc:
 			chi = convert_character_to_database(chi)
 			chi = chi.minimize_base_ring()
 			if verbose > 0:
-				print "Working with",chi
+				print "\nWorking with",chi
+			file = open(log,'a')
+			file.write("\nWorking with "+str(chi)+"\n")
+			file.close()
 			A = wt1(chi,log=log,verbose=verbose)
 			if verbose > 0:
 				print "time:",cputime(t)
@@ -32,10 +42,10 @@ def wt1(chi,sturm=None,log=None,verbose=false):
 	OUTPUT:
     A list of the q-expansions (up to Galois conjugacy) of the weight 1 forms with nebentype chi
 	"""
-	if log != None:
-		file = open(log,'a')
-		file.write(str(chi.modulus())+": computing with "+str(chi)+'\n')
-		file.close()
+	# if log != None:
+	# 	file = open(log,'a')
+	# 	file.write(str(chi.modulus())+": computing with "+str(chi)+'\n')
+	# 	file.close()
 
 	U = cut_down_to_unique(chi,sturm=sturm,log=log,verbose=verbose)
 	if U.num_forms() == 0:
@@ -59,11 +69,18 @@ def wt1(chi,sturm=None,log=None,verbose=false):
 			else:
 				if verbose > 2:
 					print "Did NOT verify"
+				if log != None:
+					file = open(log,'a')
+					file.write("Did NOT verify"+'\n')
+					file.close()
+
 
 	if log != None:
 		file = open(log,'a')
 		file.write('-----------------------------\n')
 		file.close()
+	if verbose > 2:
+		print "-----------------------------"
 
 
 	return ans
@@ -77,10 +94,10 @@ def add_on_another_prime(chi,spaces,p,sturm=None,log=None,verbose=false):
 		print "Working with p =",p
 	if log != None:
 		file = open(log,'a')
-		file.write(" Working with p = "+str(p)+": ")
+		file.write(" Working with p = "+str(p)+": \n")
 		file.close()
 
-	Dp = wt1_space_modp(p,chi,sturm=sturm,verbose=verbose)
+	Dp = wt1_space_modp(p,chi,sturm=sturm,verbose=verbose,log=log)
 	if Dp.num_spaces() > 0:
 		if verbose > 1:
 			print "  -Found something"
@@ -108,7 +125,7 @@ def trim_down_spaces(chi,spaces):
 				if m * euler_phi(chi.order()) >= f.degree():
 					ans += [f]
 					### SHOULD THINK THRU THIS -- PROBABLY FINE
-					assert m * euler_phi(chi.order()) == f.degree(), "haven't thought about this"
+					#assert m * euler_phi(chi.order()) == f.degree(), "haven't thought about this"
 		new_spaces += [weight_one_space(ans)]
 
 	return new_spaces
@@ -138,6 +155,11 @@ def cut_down_to_unique(chi,sturm=None,log=None,verbose=false):
 		if empty and started:
 			if verbose > 1:
 				print "  -nothing there after intersections"
+			if log != None:
+				file = open(log,'a')
+				file.write('  -nothing there after intersection\n')
+				file.close()
+
 			spaces = []
 		elif started:
 			unique = true
@@ -146,12 +168,12 @@ def cut_down_to_unique(chi,sturm=None,log=None,verbose=false):
 		p = next_prime(p)
 		p = ZZ(p)
 
-
-
 	if empty:
+		if verbose > 1:
+			print "Weight 1 space has no exotic forms"
 		if log != None:
 			file = open(log,'a')
-			file.write("\nWeight 1 space has no exotic forms"+'\n')
+			file.write("Weight 1 space has no exotic forms"+'\n')
 			file.close()
 		return weight_one_space([])
 	else:		
@@ -180,6 +202,10 @@ def cut_down_to_unique(chi,sturm=None,log=None,verbose=false):
 			if not p_found: # "no unramified prime!  need to compute more p's"
 				if verbose > 1:
 					print "No unramified prime: need more primes!"
+				if log != None:
+					file = open(log,'a')
+					file.write('No unramified prime: need more primes!\n')
+					file.close()
 				while Lf.disc() % p == 0:
 					p = next_prime(p)
 				spaces_aug = add_on_another_prime(chi,spaces,p,sturm=sturm,log=log,verbose=verbose)
@@ -190,6 +216,10 @@ def cut_down_to_unique(chi,sturm=None,log=None,verbose=false):
 				else:
 					if verbose > 1:
 						print "  -nothing there after intersection"
+					if log != None:
+						file = open(log,'a')
+						file.write('  -nothing there after intersection\n')
+						file.close()
 
 		return weight_one_space(ans)
 
@@ -214,20 +244,22 @@ def verify(f,chi,log=None):
 		file = open(log,'a')
 		file.write("Attempting to verify possible weight 1 form"+'\n')
 		file.close()
+	if verbose:
+		print "Attempting to verify possible weight 1 form"
 	sturm = ceil(Gamma0(chi.modulus()).index()/3) ## IS THIS RIGHT????
 	f.form_q_exp(sturm)
 	S = ModularSymbols(f.chi()**2,2,1).cuspidal_subspace()
 	B = S.q_expansion_basis(sturm)
 	g = f.q_exp() * E1chi(f.chi(),sturm)
 	bool = is_in(g,S,sturm)
-	print "f E_1(chi)? ",bool
+	print "f E_1(chi) test is:",bool
 	if log != None:
 		file = open(log,'a')
 		file.write(" f E_1(chi) test is: "+str(bool)+'\n')
 		file.close()
 	if bool:
 		bool = is_in(f.q_exp()**2,S,sturm)
-		print "f^2? ",bool
+		print "f^2 test is:",bool
 		if log != None:
 			file = open(log,'a')
 			file.write(" f^2 test is: "+str(bool)+'\n')
@@ -249,13 +281,13 @@ def verify(f,chi,log=None):
 
 
 
-def wt1_space_modp(p,chi,verbose=False,sturm=None):
+def wt1_space_modp(p,chi,verbose=False,sturm=None,log=None):
 	K = chi(1).parent()
 	if K != QQ:
 		pp = K.prime_above(p)
 	else:
 		pp = ideal(p)
-	M = maximal_eigendoubled_Artin(chi,p,pp,sturm,verbose=verbose)
+	M = maximal_eigendoubled_Artin(chi,p,pp,sturm,log=log,verbose=verbose)
 	D = decompose(M,chi,sturm,[p],p)
 	D._pK = pp
 	D.remove_CM()
@@ -265,7 +297,7 @@ def wt1_space_modp(p,chi,verbose=False,sturm=None):
 
 ## 	M = ModularSymbols(chi,p,1,GF(p)).cuspidal_subspace()
 ##  pp is prime over p in Q(chi)
-def maximal_eigendoubled_Artin(chi,p,pp,sturm,verbose=False):
+def maximal_eigendoubled_Artin(chi,p,pp,sturm,log=None,verbose=False):
 	if sturm == None:
 		sturm == STURM
 	N = chi.modulus()
@@ -273,6 +305,11 @@ def maximal_eigendoubled_Artin(chi,p,pp,sturm,verbose=False):
 	kk = pp.residue_field()
 	if verbose > 2:
 		print "Forming modsym space"
+	if log != None:
+		file = open(log,'a')
+		file.write('Forming modsym space\n')
+		file.close()
+
 	M = ModularSymbols(chi,p,1,kk).cuspidal_subspace().new_subspace()
 
 	if chi.order() == 2 and N.is_prime():
@@ -287,7 +324,8 @@ def maximal_eigendoubled_Artin(chi,p,pp,sturm,verbose=False):
 
 
 	N = chi.modulus()
-	Nc = chi.conductor()
+	Nc = chi.conductor()					
+
 
 #	exclude = [q for q in primes(sturm) if N%q==0] + [p]
 	exclude = [p]
@@ -296,12 +334,12 @@ def maximal_eigendoubled_Artin(chi,p,pp,sturm,verbose=False):
 	## can we do better here in general?  Are exotic forms never over Q and thus always come in pairs?
 		if exclude.count(ell) == 0 and N.valuation(ell) == Nc.valuation(ell):
 		## second condition is imposed because otherwise T_ell is identically 0.
-			M = maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=verbose)
+			M = maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=verbose,log=log)
 		ell = next_prime(ell)
 
 	return M
 
-def maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=False):
+def maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=False,log=None):
 	N = chi.modulus()
 	p = M.base_ring().characteristic()
 	R = PolynomialRing(GF(p),'x')
@@ -309,11 +347,19 @@ def maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=False):
 
 	if verbose > 2:
 		print "Using T_",ell,"on",M.dimension(),"-dimensional space"
+	if log != None:
+		file = open(log,'a')
+		file.write('Using T_'+str(ell)+' on '+str(M.dimension())+'-dimensional space\n')
+		file.close()
 	T_ell = M.hecke_operator(ell)
 	f_ell = T_ell.charpoly()
 	facts = f_ell.factor()
 	if verbose > 2:
 		print "  Collecting irreducible factors with doubled socle and Artin type	"
+	if log != None:
+		file = open(log,'a')
+		file.write('  Collecting irreducible factors with doubled socle and Artin type\n')
+		file.close()
 	f_passed = 1
 	passed = false
 	for D in facts:
@@ -322,6 +368,10 @@ def maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=False):
 		if e > 1:  ## doubled
 			if verbose > 2:
 				print "    Poly =",g,"is doubled.  Checking Artin and eigen-doubled"
+			if log != None:
+				file = open(log,'a')
+				file.write('    Poly = '+str(g)+' is doubled.  Checking Artin and eigen-doubled\n')
+				file.close()
 
 			if chi.modulus() % ell != 0:
 				v = FC.possible_Artin_polys(g,chi(ell),p)
@@ -339,21 +389,32 @@ def maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=False):
 						print "      passed --- eigen-doubled and Artin"
 					else:
 						print "      not eigen-doubled"
+				if passed:
+					to_file(log,"      passed --- eigen-doubled and Artin")
+				else:
+					to_file(log,"      not eigen-doubled")
 			else:
 				if verbose > 2:
 					print "      not Artin"
+				to_file(log,"      not Artin")
 				passed = false
 			if passed:
 				f_passed *= g**e
 	if f_passed != 1:
 		if verbose > 2:
 			print "Restricting to",f_passed.factor()
+		to_file(log,"Restricting to "+str(f_passed.factor()))
+
 		M = (f_passed.substitute(T_ell)).kernel()
 	else:
 		M = M.zero_submodule()
 
 	return M
 
+def to_file(log,str):
+	file = open(log,'a')
+	file.write(str+'\n')
+	file.close()
 
 ## no steinberg primes not dividing conductor
 def no_steinberg(chi):

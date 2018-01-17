@@ -46,7 +46,7 @@ def form_CM_dict(fs,chrs,prec):
 		N = K.zeta_order()
 		L = CyclotomicField(N)
 		H = Hom(K,L)
-		if len(H) > 1:
+		if len(H) > 0:
 			phi = Hom(K,L)[0]
 			eps = eps.change_ring(phi)
 			eps = eps.minimize_base_ring()
