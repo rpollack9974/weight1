@@ -23,20 +23,6 @@ def collect_wt1_data(Nmin,Nmax,sturm=None,verbose=false):
 			file.write("time: "+str(cputime(t)))
 			file.close()
 
-def collect_wt1_data_quadratic(Nmin,Nmax,sturm=None,verbose=false):
-	t = cputime()
-	log = "DATA/wt1_quad."+str(Nmin)+"-"+str(Nmax)+".log"
-	for N in primes(Nmin,Nmax+1):
-		if N%4==3:
-			G = DirichletGroup(N,QQ)
-			chi = G.gens()[0]
-			if verbose > 0:
-				print "Working with level",N
-			A = wt1(chi,log=log,verbose=verbose)
-			if verbose > 0:
-				print "time:",cputime(t)
-
-
 def wt1(chi,sturm=None,log=None,verbose=false):
 	"""Computes the space of weight 1 forms with character chi
 	
@@ -282,7 +268,7 @@ def wt1_space_modp(p,chi,verbose=False,sturm=None):
 def maximal_eigendoubled_Artin(chi,p,pp,sturm,verbose=False):
 	if sturm == None:
 		sturm == STURM
-	N = chi.conductor()
+	N = chi.modulus()
 
 	kk = pp.residue_field()
 	if verbose > 2:
@@ -300,13 +286,16 @@ def maximal_eigendoubled_Artin(chi,p,pp,sturm,verbose=False):
 			lb = len(CM[chi])
 
 
-	N = chi.conductor()
+	N = chi.modulus()
+	Nc = chi.conductor()
+
 #	exclude = [q for q in primes(sturm) if N%q==0] + [p]
 	exclude = [p]
 	ell = 2
 	while (M.dimension() >= 2*lb + 2*euler_phi(chi.order())) and (ell<=sturm):  
 	## can we do better here in general?  Are exotic forms never over Q and thus always come in pairs?
-		if exclude.count(ell) == 0:
+		if exclude.count(ell) == 0 and N.valuation(ell) == Nc.valuation(ell):
+		## second condition is imposed because otherwise T_ell is identically 0.
 			M = maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=verbose)
 		ell = next_prime(ell)
 

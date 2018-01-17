@@ -192,11 +192,10 @@ class EigenDecomp(SageObject):
 					h0[q] = [x]
 				elif chi(q) != 0:
 					h0[q] = FC.possible_Artin_polys(h[q],chi(q),p)
-					if len(h0[q]) == 0:
-						fail = true
 				else:
 					h0[q] = FC.possible_Artin_polys(h[q],chi,p)
-
+				if len(h0[q]) == 0:
+					fail = true
 
 		evs,bool = self.grab_eigens(j)
 		fail = fail and not bool
@@ -206,18 +205,11 @@ class EigenDecomp(SageObject):
 		h0[p] = FC.possible_Artin_polys(pi,chi(p),p)
 		if len(h0[p]) == 0:
 			fail = true
-#			if fail:
-#				print "Failed at",p
-
-#		assert not fail, "No lift!"
 
 		### mild galois conjugate check
 		for q in h0.keys():
 			if q != p:
-#				print "old:",h0[q]
 				h0[q] = [P for P in h0[q] if 2 * P.degree() <= self.dimension() * euler_phi(chi.order())]  ## is this right at p?
-#				print "new:",h0[q]
-#				print "dim =",self.dimension()
 
 		return weight_one_form(chi,h0,space=EigenDecomp(self[j],self.chi(),self._pK)),not fail
 
