@@ -213,6 +213,18 @@ class EigenDecomp(SageObject):
 
 		return weight_one_form(chi,h0,space=EigenDecomp(self[j],self.chi(),self._pK)),not fail
 
+	def upper_bound(self):
+		ans = 0
+		for j in range(self.num_spaces()):
+			ans += floor(self[j].dimension()/2)
+		return ans
+
+	def lower_bound(self):
+		chi = self.chi()
+		if CM.keys().count(chi)==0:
+			return 0
+		else:
+			return len(CM[chi])
 
 	def unique_lift(self,j):
 		bool = true

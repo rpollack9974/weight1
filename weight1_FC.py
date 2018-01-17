@@ -135,6 +135,12 @@ class weight_one_FC(SageObject):
 
 		return [P for P in polys if R(P) % pi == 0]				
 
+	def upper_bound(self):
+		ans = 0
+		for j in range(self.num_spaces()):
+			ans += floor(self[j].dimension()/2)
+		return ans
+
 
 def even(f):
 	v = list(f)

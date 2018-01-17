@@ -140,7 +140,7 @@ def cut_down_to_unique(chi,sturm=None,log=None,verbose=false):
 	empty = false
 	started = false
 
-	p = ZZ(3)
+	p = ZZ(2)
 	j = 0
 	spaces = []
 
@@ -290,8 +290,12 @@ def wt1_space_modp(p,chi,verbose=False,sturm=None,log=None):
 	M = maximal_eigendoubled_Artin(chi,p,pp,sturm,log=log,verbose=verbose)
 	D = decompose(M,chi,sturm,[p],p)
 	D._pK = pp
-	D.remove_CM()
-#	D.remove_non_Artin()
+	if D.lower_bound() == D.upper_bound():
+		return EigenDecomp([],chi)
+	else:
+		if p > 2:
+			D.remove_CM()
+
 	return D
 
 
