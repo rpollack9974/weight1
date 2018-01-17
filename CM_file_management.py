@@ -22,7 +22,7 @@ def characters_with_CM_forms(fs):
 			print eps.modulus()
 			print eps
 			print "-------------"
-		if eps.conductor()>500:
+		if eps.modulus()>1000:
 			break
 
 	return chrs
@@ -32,7 +32,8 @@ def form_CM_dict(fs,chrs,prec):
 	for eps in chrs:
 		CM[eps] = []
 
-	for r in range(len(chrs)):
+	r = 0
+	while r < len(fs):
 		print r
 		f,eps = make_form(fs[r])
 		if f.precision_absolute()<prec:
@@ -44,10 +45,15 @@ def form_CM_dict(fs,chrs,prec):
 			K = CyclotomicField(2)
 		N = K.zeta_order()
 		L = CyclotomicField(N)
-		phi = Hom(K,L)[0]
-		eps = eps.change_ring(phi)
-		eps = eps.minimize_base_ring()
-		CM[eps] += [f]
+		H = Hom(K,L)
+		if len(H) > 1:
+			phi = Hom(K,L)[0]
+			eps = eps.change_ring(phi)
+			eps = eps.minimize_base_ring()
+			CM[eps] += [f]
+		r += 1
+		if eps.modulus() > 600:
+			break 
 
 	return CM
 

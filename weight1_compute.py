@@ -20,7 +20,7 @@ def collect_wt1_data(Nmin,Nmax,sturm=None,verbose=false):
 			if verbose > 0:
 				print "time:",cputime(t)
 			file = open(log,'a')
-			file.write("time: "+str(cputime(t)))
+			file.write("time: "+str(cputime(t))+"\n")
 			file.close()
 
 def wt1(chi,sturm=None,log=None,verbose=false):
