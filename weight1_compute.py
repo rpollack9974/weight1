@@ -440,7 +440,7 @@ def maximal_eigendoubled_Artin(chi,p,pp,sturm,unique_data=None,log=None,verbose=
 #	exclude = [q for q in primes(sturm) if N%q==0] + [p]
 	exclude = [p]
 	ell = 2
-	while (M.dimension() >= 2*lb + 2*euler_phi(chi.order())) and (ell<=sturm):  
+	while (M.dimension() > 2*lb) and (ell<=sturm):  
 	## can we do better here in general?  Are exotic forms never over Q and thus always come in pairs?
 		if exclude.count(ell) == 0 and N.valuation(ell) == Nc.valuation(ell):
 		## second condition is imposed because otherwise T_ell is identically 0.
