@@ -9,7 +9,7 @@ class EigenDecomp(SageObject):
 			self.p = Ms[0].base_ring().characteristic()
 		else:
 			self.p = None
-		self._pK = pp #chosen prime over p
+		self._pchi = pp #chosen prime over p
 
 	def chi(self):
 		return self._chi
@@ -89,9 +89,9 @@ class EigenDecomp(SageObject):
 				ps = [q for q in primes(sturm)]
 		ans = {}
 		for q in ps:
+			if verbose > 2:
+				print "In hecke_poly q =",q
 			ans[q] = self.hecke_irred(j,q) 
-			if verbose:
-				print q,ans[q]
 		return ans
 
 	### CHEATING HERE!!!!!  ONLY COMPARING WITH MIN POLY AND 	
@@ -197,7 +197,7 @@ class EigenDecomp(SageObject):
 				if len(h0[q]) == 0:
 					fail = true
 
-		evs,bool = self.grab_eigens(j)
+		evs,pf,phibar,bool = self.grab_eigens(j)
 		fail = fail and not bool
 		ap = evs[p]
 		pi = ap.minpoly()
@@ -211,12 +211,12 @@ class EigenDecomp(SageObject):
 			if q != p:
 				h0[q] = [P for P in h0[q] if 2 * P.degree() <= self.dimension() * euler_phi(chi.order())]  ## is this right at p?
 
-		return weight_one_form(chi,h0,space=EigenDecomp(self[j],self.chi(),self._pK)),not fail
+		return weight_one_form(chi,h0,space=EigenDecomp(self[j],self.chi(),self._pchi)),not fail
 
 	def upper_bound(self):
 		ans = 0
 		for j in range(self.num_spaces()):
-			ans += floor(self[j].dimension()/2)
+			ans += floor(self[j].dimension() * self[j].base_ring().degree() / 2)
 		return ans
 
 	def lower_bound(self):
@@ -243,154 +243,37 @@ class EigenDecomp(SageObject):
 
 		return bool 
 
-# 	def Artin_conjugates(self,j,FC):
-# 		ts = self.Artin_types(j,FC)
 
-# 		ans = {}
-# 		for G in ts:
-# 			f = self.lift_to_char0_minpolys(j,FC,G)
-# 			v = [r for r in range(self.num_spaces()) if self.lift_to_char0_minpolys(r,FC,G) == f]
-# 			ans[G] = v
-
-# 		Ds = []
-# 		for G in ans.keys():
-# 			D = EigenDecomp([self[r] for r in ans[G]])
-# 			return D
-
-# 			f = D.lift_to_char0_minpolys(0,FC,G)
-# 			good = true
-# 			R = PolynomialRing(D[0].base_ring(),'x')
-# 			for q in f.keys():
-# #				print "Checking",q
-# #				print D.dimension(),f[q][0]
-# 				good = good and D.hecke_polynomial(q) == R(f[q][0]**(D.dimension() / f[q][0].degree()))
-# 			if good:
-# 				Ds += [D]
-
-# 		return Ds
-
-# 	def lift_to_char0(self,j,FC,G,sturm):
-# 		chi = FC.chi
-# 		p = self.p
-# 		h = self.hecke_polys(j,sturm=sturm)		
-# 		f = prod(list(set(h.values())))
-# 		F = f.splitting_field('alpha')
-
-# 		K = CyclotomicField(chi.order())
-# 		ppK = K.prime_above(p)
-# 		kK = ppK.residue_field()
-# 		phi = Hom(kK,F)[0]
-# 		chip = chi.change_ring(kK).change_ring(phi)
-
-# 		M = ModularSymbols(chip,p,1,F).cuspidal_subspace()
-
-# 		r = 0
-# 		done = false
-# 		R = PolynomialRing(F,'x')
-
-# 		print "Cutting down over extension field"
-# 		while not done and r < len(h.keys()):
-# 			q = h.keys()[r]
-# 			aq = R(h[q]).roots()[0][0]
-# 			T = M.hecke_operator(q)
-# 			M = (T-aq).kernel()
-# 			done = M.dimension() == 2
-# 			r += 1
-
-# 		assert M.dimension()==2,"dim too large"
-# 		print "Done"
-
-# 		return M
-
-# 		q = h.keys()[0]		
-# 		aq = M.hecke_polynomial(q).roots()[0][0]
-
-# 		evs = FC.evs[G]
-# 		L = evs[1][0].parent()
-# 		pp = L.prime_above(p)
-# 		kk = pp.residue_field()
-
-# ##subroutine needed here
-# 		poss_evs = []
-# 		for ev in evs[chi(q)]:
-# 			t = 0
-# 			for alpha in ev.galois_conjugates(L):
-# 				if kk(alpha).minpoly() == aq.minpoly():
-# 					t = alpha
-# 			if t != 0:
-# 				poss_evs += [t]
-# #		poss_evs = [ev for ev in evs[chi(q)] if kk(ev).minpoly() == aq.minpoly()]
-# #		return poss_evs
-# 		assert len(poss_evs)==1,"No lifts or too many lifts: "+str(len(poss_evs))
-# 		ev = poss_evs[0]
-
-# 		j = 0
-# 		done = false
-# 		print "finding phi with",F,kk
-# 		while not done and j<len(Hom(F,kk)):
-# 			phi = Hom(F,kk)[j]
-# 			done = ev == phi(aq)
-# 			j += 1
-# 		print "Done"
-
-# 		ans = {}
-# #		return M
-
-# 		for q in primes(sturm):
-# 			print "Computing Hecke:",q
-# 			if q != p:
-# 				aq = M.hecke_polynomial(q).roots()[0][0]
-# 			else:
-# 				aq = -(M.hecke_polynomial(q)[1])
-
-# 			done = false
-
-# #			print [kk(ev).minpoly() for ev in evs[chi(q)]],aq.minpoly()
-# 			poss_evs = []
-# 			for ev in evs[chi(q)]:
-# 				t = 0
-# 				for alpha in ev.galois_conjugates(L):
-# 					if kk(alpha).minpoly() == aq.minpoly():
-# 						t = alpha
-# 				if t != 0:
-# 					poss_evs += [t]
-# 			poss_evs = list(set(poss_evs))
-# #			poss_evs = [ev for ev in evs[chi(q)] if kk(ev).minpoly() == aq.minpoly()]
-# 			print poss_evs
-# 			assert len(poss_evs)==1,"No lifts or too many lifts: "+str(len(poss_evs))
-
-# 			ev = poss_evs[0]
-# 			ev_conj = ev.galois_conjugates(L)
-
-# 			r = 0 
-# 			while not done and r < len(ev_conj):					
-# 				done = kk(ev_conj[r]) == phi(aq)
-# 				r += 1
-# 			assert done,"Oh oh "+str(q)+","+str(aq)	
-# 			ans[q] = ev_conj[r-1]
-
-# 		return ans
-
-	def grab_eigens(self,j,sturm=None,verbose=false):
+	def grab_eigens(self,j,Kf=None,sturm=None,verbose=false):
 		p = self.p
-		h = self.hecke_polys(j,sturm=sturm)
-
 		kk = self[j].base_ring()
-		R = PolynomialRing(kk,'x')
-		ans = 1
-		for q in h.keys():
-			if q != p:
-				ans *= R(h[q])
 
-		d = 1
-		fs = ans.factor()
-		for Q in fs:			
-			d = lcm(d,Q[0].degree())
+		h = self.hecke_polys(j,sturm=sturm,verbose=verbose)
 
-		if d>1:
-			F = kk.extension(d,'a')
+		if Kf == None:
+			R = PolynomialRing(kk,'x')
+			ans = 1
+			for q in h.keys():
+				if q != p:
+					ans *= R(h[q])
+
+			d = 1
+			fs = ans.factor()
+			for Q in fs:			
+				d = lcm(d,Q[0].degree())
+
+			if d>1:
+				F = kk.extension(d,'a')
+			else:
+				F = kk
+
+			phibar = Hom(kk,F)[0]  ## what am I choosing here???? CHECK THIS!
+			pf = None
 		else:
-			F = kk
+			pf = Kf.prime_above(p)
+			kf = pf.residue_field()
+			phibar = Hom(kk,kf)[0]
+			F = kf
 
 		M = self[j]
 		d = M.dimension()
@@ -401,9 +284,11 @@ class EigenDecomp(SageObject):
 		while W.dimension() > 2 and r < len(h.keys()):		
 			q = h.keys()[r]
 			if q != self.p:
+				if verbose > 2:
+					print "in grab-eigens with q =",q
 				T = M.hecke_operator(q)
 				A = T.matrix()
-				A = A.base_extend(F)
+				A = A.apply_map(phibar)
 				for WW in Ws:
 					A = A.restrict(WW)
 #				A = A.restrict(W)
@@ -418,9 +303,12 @@ class EigenDecomp(SageObject):
 
 		evs = {}
 		for q in h.keys():
+			if verbose > 1:
+				print "In grab with q =",q
+
 			T = M.hecke_operator(q)
 			A = T.matrix()
-			A = A.base_extend(F)
+			A = A.apply_map(phibar)
 			for WW in Ws:
 				A = A.restrict(WW)
 			if q != self.p:
@@ -430,7 +318,7 @@ class EigenDecomp(SageObject):
 				ap = -f[1]
 				evs[q] = ap
 
-		return evs,not fail
+		return evs,pf,phibar,not fail
 
 	def wt1_space(self,sturm=None):
 		forms = []

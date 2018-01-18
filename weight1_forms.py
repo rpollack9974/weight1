@@ -45,7 +45,7 @@ class weight_one_form(SageObject):
 		self._q_exp = None
 		self._phi = None
 		self._phibar = None
-		self._pL = None
+		self._pf = None
 
 
 	def evs_modp(self):
@@ -332,61 +332,43 @@ class weight_one_form(SageObject):
 					return False
 			return True
 
-	def grab_eigens(self,sturm=None,verbose=false):		
-		t,bool = self.space().grab_eigens(0,sturm=sturm,verbose=false)
+	def grab_eigens(self,Kf=None,sturm=None,verbose=false):		
+		t,pf,phibar,bool = self.space().grab_eigens(0,Kf=Kf,sturm=sturm,verbose=verbose)
+		self._phibar = phibar
+		self._pf = pf
 		assert bool,"uh-oh!"
 		self._evs_modp = t
 
-	def lift_eigen_system(self,sturm=None):
+	def lift_eigen_system(self,Kf=None,sturm=None,verbose=false):
 		assert self.unique(),"min polys not yet unique"
 		if self.evs_modp() == None:
-			self.grab_eigens(sturm=sturm)
+			self.grab_eigens(Kf=Kf,sturm=sturm,verbose=verbose)
 		if sturm != None:
 			d = len(self.evs_modp().keys())
 			max_key = max(self.evs_modp().keys())
 			if next_prime(max_key) < sturm:
-				print "findind more evs_modp",sturm
-				self.grab_eigens(sturm=sturm)
-				print self.evs_modp()
+				self.grab_eigens(Kf=Kf,sturm=sturm,verbose=verbose)
+		phibar = self._phibar
 		evs_modp = self.evs_modp()
-		v = self.hecke().values()
-		v = [a[0] for a in v]
-		Q = prod(list(set(v)))
-		L = Q.splitting_field('a')
-	#	print "L=",L
-
-		F = evs_modp[2].parent()
-
-		p = F.characteristic()
-		pp = L.prime_above(p)
-		self._pL = pp
-		kL = pp.residue_field()
-	#	print "kL =",kL
-
-		phibar = Hom(F,kL)[0]
-		self._phibar = phibar
-	#	print phi
+		pf = self._pf
+		Kf = pf.ring()
+		kf = pf.residue_field()
+		p = kf.characteristic()
 
 		ans = {}
-		R = PolynomialRing(L,'x')
+		R = PolynomialRing(Kf,'x')
 		for q in evs_modp.keys():
-	#		print "prime ",q
-	#		print "R =",R
-			f = self.hecke(q,0)
-			rs = R(f).roots()
+#			print "prime ",q
+#			print "R =",R
+			fq = self.hecke(q,0)
+			rs = R(fq).roots()
 			done = false
 			j = 0
-	#		print f
-	#		print " roots",rs
-			possible_lifts = [r[0] for r in rs if phibar(evs_modp[q]) == kL(r[0])]
-			assert len(possible_lifts)>0, "no congruent root found"
+#			print f
+#			print " roots",rs
+			possible_lifts = [r[0] for r in rs if evs_modp[q] == kf(r[0])]
+			assert len(possible_lifts)>0, "no congruent root found "+str(rs)+str(fq)
 			assert len(possible_lifts)==1, "lift not unique!"
-	# 		while not done and j < len(rs):
-	# 			alpha = rs[j][0]
-	# #			print ev_modp[q],alpha
-	# 			done = phi(evs_modp[q]) == kL(alpha)
-	# 			j += 1
-#			assert done, "no congruent root found!"
 			ans[q] = possible_lifts[0]
 
 		self._evs = ans
@@ -395,28 +377,24 @@ class weight_one_form(SageObject):
 		evs = self.evs()
 		chi = self.chi()
 		if self.phi() == None:
-			L = self._pL.ring()
-			K = chi(1).parent()
-			if K == QQ:
-				K = CyclotomicField(2)
-			pK = self.space()._pK
-			pL = self._pL
-			kK = pK.residue_field()
-			kL = pL.residue_field()
+			Kf = self._pf.ring()
+			Kchi = chi(1).parent()
+			if Kchi == QQ:
+				Kchi = CyclotomicField(2)
+			pchi = self.space()._pchi
+			pf = self._pf
+			kchi = pchi.residue_field()
+			kf = pf.residue_field()
 			found = false
 			r = 0
-			H = Hom(K,L)
+			H = Hom(Kchi,Kf)
 			while not found:
 				phi = H[r]
-				found = self._phibar(kK(K.gen())) == kL(phi(K.gen()))
+				found = self._phibar(kchi(Kchi.gen())) == kf(phi(Kchi.gen()))
 				r += 1
 			self._phi = phi
 			self._neben = chi.change_ring(phi)
 			chi = self._neben
-# 			L = evs[evs.keys()[0]].parent()
-# 			K = chi(1).parent()
-# 			self._phi = Hom(K,L).an_element()
-# #			chi = chi.change_ring(self.phi()) ## should this be changed always?
 		if n == 1:
 			return 1
 		else:
@@ -437,15 +415,15 @@ class weight_one_form(SageObject):
 					return self.an(q**(e-1)) * evs[q] - chi(q) * self.an(q**(e-2))
 
 	## takes dictionary on primes to full q-expansion
-	def form_q_exp(self,sturm):
+	def form_q_exp(self,sturm,Kf=None,verbose=false):
 		if self.evs() == None:
-			self.lift_eigen_system(sturm=sturm)
+			self.lift_eigen_system(Kf=Kf,sturm=sturm,verbose=verbose)
 		d = len(self.evs().keys())
 		max_key = max(self.evs().keys())
 		if next_prime(max_key) < sturm:
-			print "finding more evs"
-			self.lift_eigen_system(sturm=sturm)
-			print self.evs()
+#			print "finding more evs"
+			self.lift_eigen_system(Kf=Kf,sturm=sturm,verbose=verbose)
+#			print self.evs()
 		evs = self.evs()
 		L = evs[evs.keys()[0]].parent()
 		R = PowerSeriesRing(L,'q')
@@ -617,6 +595,8 @@ class weight_one_space(SageObject):
 			g=f.intersect_with_many(B.forms())
 			if g.is_nontrivial():
 				new_forms += [g]
+
+
 
 		return weight_one_space(new_forms)
 
