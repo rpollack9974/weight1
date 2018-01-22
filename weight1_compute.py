@@ -76,6 +76,14 @@ def wt1(chi,sturm=None,log=None,verbose=false):
 						lower += f.degree() / euler_phi(chi.order())
 					else:
 						output(log,verbose,1,"Failed to verify")
+				else:
+					while U[0].multiplicity(f) > 0:
+						U[0].remove(f)
+					if U[0].num_forms() == 0:
+						upper = 0
+						break
+					upper = upper_bound(U)
+
 		if lower != upper:
 			output(log+str('.fail'),verbose,0,"str(chi)")
 			output(log+str('.fail'),verbose,0,"lower = "+str(lower)+"; upper = "+str(upper))
@@ -311,7 +319,7 @@ def verify(fq,chi,log=None,verbose=false):
 		if log != None:
 			file = open(log+".data",'a')
 			file.write(str(chi)+'\n')
-			file.write(str(f)+'\n')
+			file.write(str(fq)+'\n')
 			file.write('------\n')
 			file.close()
 
@@ -597,7 +605,7 @@ def form_qexp(f,fs,log=None,verbose=None):
 
 	fail = W.dimension() < 2
 	if fail:
-		print "failed in grab!"
+		print "failed in ???!"
 		return 0,not fail,chi
 	## confused here by the 190 example but maybe dimension can still be 1 at this point
 
@@ -633,6 +641,7 @@ def form_qexp(f,fs,log=None,verbose=None):
 							fq = fq.factor()[0][0]
 							pi_qs = FC.possible_Artin_polys(fq,chi,q,g.p())
 						else:
+							###PROBLEM HERE!!!!
 							ans = find_ap_minpoly(fq)
 							pi_qs = FC.possible_Artin_polys(ans,chi,q,q)
 						if len(pi_qs) == 0:
@@ -644,6 +653,8 @@ def form_qexp(f,fs,log=None,verbose=None):
 							hecke[q] = list(S1.intersection(S2))
 						if len(hecke[q]) == 1:
 							break
+						if len(hecke[q]) == 0:
+							fail = true
 
 			if fail:
 				return 0,not fail,chi

@@ -201,8 +201,51 @@ class EigenDecomp(SageObject):
 		if exclude.count(p) == 0:
 			### Here's how we handle p
 			### 
-			pi_p = self[j].hecke_polynomial(p)
-			ans = find_ap_minpoly(pi_p)
+			M = self[j]
+			kchi = M.base_ring()
+			R = PolynomialRing(kchi,'x')
+			ans = 1
+			for q in h.keys():
+				ans *= R(h[q])
+
+			d = 1
+			fs = ans.factor()
+			for Q in fs:			
+				d = lcm(d,Q[0].degree())
+
+			if d > 1:
+				kf = kchi.extension(d,'a')
+			else:
+				kf = kchi
+
+			phibar = Hom(kchi,kf)[0]  ## what am I choosing here???? CHECK THIS!
+			d = M.dimension()
+			V = kf**d 
+			W = V
+			Ws = [W]
+			r = 0
+			while W.dimension() > 2 and r < len(h.keys()):		
+				q = h.keys()[r]
+				if q != p:
+					T = M.hecke_operator(q)
+					A = T.matrix()
+					A = A.apply_map(phibar)
+					for WW in Ws:
+						A = A.restrict(WW)
+					W = A.left_eigenspaces()[0][1]
+					Ws.append(W)
+				r += 1
+
+			fail = W.dimension()<2
+
+			T = M.hecke_operator(p)
+			A = T.matrix()
+			A = A.apply_map(phibar)
+			for WW in Ws:
+				A = A.restrict(WW)
+			f = A.charpoly()
+			ap = -f[1]
+			ans = ap.minpoly()
 			h0[p] = FC.possible_Artin_polys(ans,chi,p,p)
 			if len(h0[p]) == 0:
 				fail = true
@@ -331,20 +374,6 @@ class EigenDecomp(SageObject):
 	
 
 
-# def eigen_system(M,sturm):
-# 	ans = {}
-# 	p = M.base_ring().characteristic()
-# 	for q in primes(sturm):
-# 		if q != p:
-# 			ans[q] = M.hecke_polynomial(q).roots()[0][0]
-# 		else:
-# 			ans[q] = -M.hecke_polynomial(q)[1]
-
-# 	return ans
-
-
-
-
 def unique(d):
 	bool = true
 	for q in d.keys():
@@ -353,56 +382,6 @@ def unique(d):
 
 
 
-
-# ## this code looks like it doesn't work in general (greedy algorithm in finding hecke system)
-# def cut_out_eigen(chi,f,p):
-# 	v = f.values()
-# 	v = [a[0] for a in v]
-# 	Q = prod(list(set(v)))
-# 	L = Q.splitting_field('alpha')
-# 	ppL = L.prime_above(p)
-# 	kL = ppL.residue_field()
-# 	print "Splitting field",kL
-
-# 	K = CyclotomicField(chi.order())
-# 	ppK = K.prime_above(p)
-# 	kK = ppK.residue_field()
-# 	phi = Hom(kK,kL)[0]
-# 	print kK,kL,phi,chi
-# 	chip = chi.change_ring(kK).change_ring(phi)
-
-# 	print "Forming ModularSymbols"
-
-# 	M = ModularSymbols(chip,p,1,kL).cuspidal_subspace()
-
-# 	r = 0
-# 	done = false
-# 	R = PolynomialRing(kL,'x')
-
-# 	print "Cutting down over extension field"
-# 	r = 0
-# 	while not done and r < len(f.keys()):
-# 		q = f.keys()[r]		
-# 		if q != p:
-# 			print "prime =",q
-# 			T = M.hecke_operator(q)
-# 			aqs = R(f[q][0]).roots()
-# 			print aqs
-# 			bool = true
-# 			j = 0
-# 			while bool:
-# 				print "Trying",j,":",aqs[j]
-# 				MM = (T-aqs[j][0]).kernel()
-# 				print "Dim =",MM.dimension()
-# 				bool = MM.dimension() < 2
-# 				j += 1
-# 			M = MM
-# 			done = M.dimension() == 2
-# 		r += 1
-
-# 	assert M.dimension()==2,"dim too large"
-# 	print "Done"
-# 	return M
 
 
 def find_ap_minpoly(pi_p):
