@@ -46,7 +46,13 @@ class weight_one_form(SageObject):
 		self._phi = None
 		self._phibar = None
 		self._pf = None
+		if self._space != None:
+			self._p = self.space().p()
+		else:
+			self._p = None
 
+	def p(self):
+		return self._p
 
 	def evs_modp(self):
 		return self._evs_modp
@@ -224,11 +230,13 @@ class weight_one_form(SageObject):
 					S1 = set(self[p])
 					S2 = set(g[p])					
 					if S1.isdisjoint(S2):
+						return S1,S2
 						same = False
 				j = j + 1
 			return same
 
 
+### MAYBE THIS IS NEVER USED???
 	def intersect(self,g):
 		"""
 		For each q (common to both forms) finds the common min polys for both forms and produces a new weight 1 forms 
@@ -255,6 +263,8 @@ class weight_one_form(SageObject):
 					new_possible_hecke[ell] = list(S1.intersection(S2))
 				elif ell in self.primes():
 					new_possible_hecke[ell] = self[ell]
+				else:
+					new_possible_hecke[ell] = g[ell]
 
 			return weight_one_form(self.chi(),new_possible_hecke,self.space())
 		else:
@@ -276,17 +286,25 @@ class weight_one_form(SageObject):
 		if many == []:
 			return weight_one_form(self.chi(),{})
 		else:
-			g = many[0]
-			all_primes = list(set(self.primes()).union(set(g.primes())))
+			all_primes = self.primes()
+			for g in many:
+				all_primes += g.primes()
+			all_primes = list(set(all_primes))
 
 			new_possible_hecke = {}
 			for ell in all_primes:
-				if ell in self.primes() and ell in g.primes():
-					S1 = set(self[ell])
-					S2 = set([])
-					for h in many:
-						S2 = S2.union(set(h[ell]))
-					new_possible_hecke[ell] = list(S1.intersection(S2))
+				S2 = set([])
+				for g in many:
+					if g.primes().count(ell) > 0:
+						S2 = S2.union(set(g[ell]))
+				if self.primes().count(ell) > 0:
+					if len(S2) > 0:
+						S1 = set(self[ell]).intersection(S2)
+					else:
+						S1 = self[ell]
+				else:
+					S1 = S2
+				new_possible_hecke[ell] = list(S1)
 				
 			return weight_one_form(self.chi(),new_possible_hecke,self.space())
 
@@ -311,7 +329,7 @@ class weight_one_form(SageObject):
 
 
 
-	def unique(self):
+	def unique(self,exclude=[]):
 		"""
 		Determines if for each eigenvalue there is a unique possible minimal polynomial it satisfies.
 
@@ -324,13 +342,21 @@ class weight_one_form(SageObject):
         
 		True or False
 		"""		
-		if self.num_evals() == 0:
-			return True
-		else:
-			for polys in self.all_possible_hecke():
-				if len(polys)>1:
-					return False
-			return True
+		bool = true
+		for ell in self.primes():
+			if exclude.count(ell) == 0:
+				bool = bool and len(self[ell]) == 1
+
+		return bool
+
+	### returns the splitting field of hecke polys
+	def FC_field(self):
+		assert self.unique(),"not unique in FC_field"
+
+		poly = 1
+		for q in self.primes():
+			poly *= self[q][0]
+		return poly.splitting_field('a')
 
 	def grab_eigens(self,Kf=None,sturm=None,verbose=false):		
 		t,pf,phibar,bool = self.space().grab_eigens(0,Kf=Kf,sturm=sturm,verbose=verbose)
@@ -459,6 +485,13 @@ class weight_one_space(SageObject):
 		A space of weight one forms.  
 		"""
 		self._forms = forms
+		if len(forms) > 0:
+			self._p = forms[0].p()
+		else:
+			self._p = None
+
+	def p(self):
+		return self._p
 
 	def num_forms(self):
 		"""
@@ -596,8 +629,6 @@ class weight_one_space(SageObject):
 			if g.is_nontrivial():
 				new_forms += [g]
 
-
-
 		return weight_one_space(new_forms)
 
 		# used_up = [False for j in range(self.num_forms())]
@@ -638,7 +669,7 @@ class weight_one_space(SageObject):
 
 		return bool
 
-	def unique(self):
+	def unique(self,exclude=[]):
 		"""
 		Determines if each form in self has all of the min polys of eigenvalues uniquely determined.
 
@@ -650,7 +681,7 @@ class weight_one_space(SageObject):
 		True or False
 		"""
 		for f in self.forms():
-			if not f.unique():
+			if not f.unique(exclude=exclude):
 				return False
 		return True
 

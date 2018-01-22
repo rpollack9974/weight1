@@ -127,13 +127,35 @@ class weight_one_FC(SageObject):
 
 		return ans
 
-	## returns all possible min polys at ell which mod p have pi as a factor
-	def possible_Artin_polys(self,pi,val,p):
-		R = PolynomialRing(GF(p),'x')
+	# ## returns all possible min polys at ell which mod p have pi as a factor
+	# def possible_Artin_polys(self,pi,val,p):
+	# 	R = PolynomialRing(GF(p),'x')
 
-		polys = self[val]
+	# 	polys = self[val]
 
-		return [P for P in polys if R(P) % pi == 0]				
+	# 	return [P for P in polys if R(P) % pi == 0]				
+
+	## returns all possible min polys at ell which mod p have g as a factor
+	## care needs to be taken if ell divides the level
+	def possible_Artin_polys(self,g,chi,ell,p):
+		N = chi.modulus()
+		Nc = chi.conductor()
+		Rp = PolynomialRing(GF(p),'x')
+		xp = Rp.gen()
+		R = PolynomialRing(QQ,'x')
+		x = R.gen()
+
+		if chi.modulus() % ell != 0:
+			polys = self[chi(ell)]
+		elif N.valuation(ell) == Nc.valuation(ell):
+			polys = self[chi]
+		elif g == xp:
+			return [x]
+		else:
+			return []
+
+		return [P for P in polys if Rp(P) % g == 0]				
+
 
 def even(f):
 	v = list(f)
@@ -143,7 +165,7 @@ def even(f):
 
 def irred_with_root(f,alpha):
 	facts = f.factor()
-	v = [pi[0].substitute(alpha).abs() for pi in facts]
+	v = [pol[0].substitute(alpha).abs() for pol in facts]
 	m = min(v)
 	assert m < 10**(-10), "no root here"
 	ind = v.index(m)

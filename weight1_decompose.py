@@ -6,10 +6,13 @@ class EigenDecomp(SageObject):
 		self._spaces = Ms
 		self._chi = chi
 		if len(Ms) != 0:
-			self.p = Ms[0].base_ring().characteristic()
+			self._p = Ms[0].base_ring().characteristic()
 		else:
-			self.p = None
+			self._p = None
 		self._pchi = pp #chosen prime over p
+
+	def p(self):
+		return self._p
 
 	def chi(self):
 		return self._chi
@@ -38,7 +41,9 @@ class EigenDecomp(SageObject):
 
 	## returns the irreducible factor of T_ell on j-th space 
 	def hecke_irred(self,j,ell):
-		return self[j].hecke_polynomial(ell).factor()[0][0]
+		facts = self[j].hecke_polynomial(ell).factor()
+		assert len(facts)==1, "Not irreducible in hecke_irred!"
+		return facts[0][0]
 
 	def dimension(self):
 		ans = 0
@@ -71,7 +76,7 @@ class EigenDecomp(SageObject):
 		M = self[j]
 		d = M.dimension()
 		if sturm == None:
-			sturm = STURM # M.sturm_bound()
+			sturm = STURM 
 		for ell in primes(sturm):
 			if exclude.count(ell) == 0:
 				T = M.hecke_operator(ell)
@@ -117,7 +122,7 @@ class EigenDecomp(SageObject):
 			return self			
 		else:
 			sturm = STURM 
-			p = self.p
+			p = self.p()
 
 			for f in CM[chi]:
 				L = f.base_ring()
@@ -135,77 +140,73 @@ class EigenDecomp(SageObject):
 					self.remove(self[ind])
 #					print "removed CM at",chi
 
-	def remove_non_Artin(self):
+	# def remove_non_Artin(self):
+	# 	chi = self.chi()
+	# 	sturm = STURM
+	# 	for r in range(self.num_spaces()):
+	# 		h = self.hecke_polys()
+	# 		R = h[2].parent()
+	# 		x = R.gen()
+	# 		remove = false
+	# 		q = 2
+	# 		while not remove and q < sturm:
+	# 			if chi.modulus() % q != 0:
+	# 				v = FC.possible_Artin_polys(h[q],chi(q),p)
+	# 			elif N.valuation(q) == chi.conductor().valuation(q):
+	# 				v = FC.possible_Artin_polys(g,chi,p)
+	# 			elif h[q] == x:
+	# 				v = [x]
+	# 			else:
+	# 				v = []
+	# 			v = [P for P in v if P.degree() <= M.dimension()]  ## weak galois conjugate check
+	# 			remove = len(v) == 0
+	# 			q = next_prime(q)
+	# 		if remove:
+	# 			self.remove(self[q])
+
+
+	# def remove_eisen(self,chi):
+	# 	if self.num_spaces() == 0:
+	# 		return self
+	# 	else:
+	# 		sturm = STURM # self[0].sturm_bound()
+	# 		N = chi.modulus()
+	# 		p = self.p
+	# 		assert chi.order() == 2
+
+	# 		dred = {}
+	# 		for q in primes(sturm):
+	# 			if q != p:
+	# 				dred[q] = GF(p)(chi(q)+1).minpoly()
+	# 		bool,j = self.hecke_occurs(dred)
+	# 		if bool:
+	# 			self.remove(j)
+
+	def lift_to_char0_minpolys(self,j,exclude=[],sturm=None):
 		chi = self.chi()
-		sturm = STURM
-		for r in range(self.num_spaces()):
-			h = self.hecke_polys()
-			R = h[2].parent()
-			x = R.gen()
-			remove = false
-			q = 2
-			while not remove and q < sturm:
-				if chi.modulus() % q != 0:
-					v = FC.possible_Artin_polys(h[q],chi(q),p)
-				elif N.valuation(q) == chi.conductor().valuation(q):
-					v = FC.possible_Artin_polys(g,chi,p)
-				elif h[q] == x:
-					v = [x]
-				else:
-					v = []
-				v = [P for P in v if P.degree() <= M.dimension()]  ## weak galois conjugate check
-				remove = len(v) == 0
-				q = next_prime(q)
-			if remove:
-				self.remove(self[q])
-
-
-	def remove_eisen(self,chi):
-		if self.num_spaces() == 0:
-			return self
-		else:
-			sturm = STURM # self[0].sturm_bound()
-			N = chi.modulus()
-			p = self.p
-			assert chi.order() == 2
-
-			dred = {}
-			for q in primes(sturm):
-				if q != p:
-					dred[q] = GF(p)(chi(q)+1).minpoly()
-			bool,j = self.hecke_occurs(dred)
-			if bool:
-				self.remove(j)
-
-	def lift_to_char0_minpolys(self,j,sturm=None):
-		chi = self.chi()
-		p = self.p
-		N = self[0].level()
-		h = self.hecke_polys(j,sturm=sturm)
+		p = self.p()
+		N = chi.modulus()
+		h = self.hecke_polys(j,exclude=[p],sturm=sturm)
 		R = PolynomialRing(QQ,'x')
 		x = R.gen()
 		h0 = {}
 		fail = false
+		### Getting minpolys away from p
 		for q in h.keys():
-			if q != p:  
-				if N % q == 0 and (N.valuation(q) != chi.conductor().valuation(q)):
-					h0[q] = [x]
-				elif chi(q) != 0:
-					h0[q] = FC.possible_Artin_polys(h[q],chi(q),p)
-				else:
-					h0[q] = FC.possible_Artin_polys(h[q],chi,p)
+			if q != p and exclude.count(q) == 0:
+				h0[q] = FC.possible_Artin_polys(h[q],chi,q,p)
 				if len(h0[q]) == 0:
 					fail = true
 
-		evs,pf,phibar,bool = self.grab_eigens(j)
-		fail = fail and not bool
-		ap = evs[p]
-		pi = ap.minpoly()
-
-		h0[p] = FC.possible_Artin_polys(pi,chi(p),p)
-		if len(h0[p]) == 0:
-			fail = true
-
+		if exclude.count(p) == 0:
+			### Here's how we handle p
+			### 
+			pi_p = self[j].hecke_polynomial(p)
+			ans = find_ap_minpoly(pi_p)
+			h0[p] = FC.possible_Artin_polys(ans,chi,p,p)
+			if len(h0[p]) == 0:
+				fail = true
+			
 		### mild galois conjugate check
 		for q in h0.keys():
 			if q != p:
@@ -245,17 +246,16 @@ class EigenDecomp(SageObject):
 
 
 	def grab_eigens(self,j,Kf=None,sturm=None,verbose=false):
-		p = self.p
+		p = self.p()
 		kk = self[j].base_ring()
 
-		h = self.hecke_polys(j,sturm=sturm,verbose=verbose)
+		h = self.hecke_polys(j,exclude=[p],sturm=sturm,verbose=verbose)
 
 		if Kf == None:
 			R = PolynomialRing(kk,'x')
 			ans = 1
 			for q in h.keys():
-				if q != p:
-					ans *= R(h[q])
+				ans *= R(h[q])
 
 			d = 1
 			fs = ans.factor()
@@ -283,7 +283,7 @@ class EigenDecomp(SageObject):
 		r = 0
 		while W.dimension() > 2 and r < len(h.keys()):		
 			q = h.keys()[r]
-			if q != self.p:
+			if q != self.p():
 				if verbose > 2:
 					print "in grab-eigens with q =",q
 				T = M.hecke_operator(q)
@@ -302,7 +302,7 @@ class EigenDecomp(SageObject):
 		## confused here by the 190 example but maybe dimension can still be 1 at this point
 
 		evs = {}
-		for q in h.keys():
+		for q in h.keys()+[p]:
 			if verbose > 1:
 				print "In grab with q =",q
 
@@ -311,7 +311,7 @@ class EigenDecomp(SageObject):
 			A = A.apply_map(phibar)
 			for WW in Ws:
 				A = A.restrict(WW)
-			if q != self.p:
+			if q != self.p():
 				evs[q] = A.charpoly().roots()[0][0]
 			else:
 				f = A.charpoly()
@@ -403,3 +403,16 @@ def unique(d):
 # 	assert M.dimension()==2,"dim too large"
 # 	print "Done"
 # 	return M
+
+
+def find_ap_minpoly(pi_p):
+	F,phi = pi_p.splitting_field('a',map=true)
+	rs = pi_p.map_coefficients(phi).roots()
+	assert len(rs) <= 2 and len(rs)>=1,"problem at p in find_ap_minpoly"
+	alpha = rs[0][0]
+	if len(rs) == 1:  ## alpha = beta
+		ans = (2*alpha).minpoly()
+	else:
+		beta = rs[1][0]
+		ans = (alpha+beta).minpoly()
+	return ans
