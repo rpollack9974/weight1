@@ -76,6 +76,10 @@ def wt1(chi,sturm=None,log=None,verbose=false):
 						lower += f.degree() / euler_phi(chi.order())
 					else:
 						output(log,verbose,1,"Failed to verify")
+		if lower != upper:
+			output(log+str('.fail'),verbose,0,"str(chi)")
+			output(log+str('.fail'),verbose,0,"lower = "+str(lower)+"; upper = "+str(upper))
+
 		return ans,lower == upper
 
 
