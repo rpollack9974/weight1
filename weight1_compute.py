@@ -68,9 +68,11 @@ def wt1(chi,sturm=None,log=None,verbose=false):
 				Kf = f.FC_field()
 				d = Kf.disc()
 				for g in fs:
+					print "Trying",g
 					p = g.p()
 					if d % p != 0:
 						break
+					print "Nope"
 				fq,bool,chi = form_qexp(g,fs,log=log,verbose=verbose)
 				if bool:
 					bool = verify(fq,chi,log=log,verbose=verbose)
@@ -140,7 +142,11 @@ def add_on_another_prime(chi,spaces,p,unique_data=None,sturm=None,log=None,verbo
 		for Sq in spaces:
 			Sp = Sp.intersect(Sq)
 		for i in range(len(spaces)):
-			spaces[i] = spaces[i].intersect(Sp) ## once more?
+			spaces[i] = spaces[i].intersect(Sp)
+		for Sq in spaces:
+			Sp = Sp.intersect(Sq)
+		for i in range(len(spaces)):
+			spaces[i] = spaces[i].intersect(Sp)
 		spaces += [Sp]
 		return spaces
 	else:
