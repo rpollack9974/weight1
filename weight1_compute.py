@@ -49,11 +49,14 @@ def wt1(chi,sturm=None,log=None,verbose=false):
 	else:
 		upper = upper_bound(U)
 		lower = 0
+		for S in U:
+			if S.unique():
+				break
 		N = chi.modulus()
 		strong_sturm = ceil(Gamma0(N).index() / 3)
 		output(log,verbose,1,"Computing to higher precision")
 		forms_used = []
-		for f in U[0].forms():
+		for f in S.forms():
 			if forms_used.count(f) == 0:
 				forms_used += [f]
 				fs = [f]
@@ -195,12 +198,12 @@ def cut_down_to_unique(chi,unique_data=None,sturm=None,log=None,verbose=false):
 			for Sq in spaces:
 				unique = unique or Sq.unique()
 			if unique and not empty:
-				### I think a non-unique space at this time points to a congruence between true weight 1 forms
-				### So we just throw away data from that prime as it messes up our intersection stuff
-				for Sq in spaces:
-					if not Sq.unique():
-						spaces.remove(Sq)
-						print "THrowing away",Sq,"because of congruence?"
+				# ### I think a non-unique space at this time points to a congruence between true weight 1 forms
+				# ### So we just throw away data from that prime as it messes up our intersection stuff
+				# for Sq in spaces:
+				# 	if not Sq.unique():
+				# 		spaces.remove(Sq)
+				# 		print "THrowing away",Sq,"because of congruence?"
 				unramified_prime = true
 				for f in spaces[0]:
 					bool = false
@@ -630,6 +633,8 @@ def form_qexp(f,fs,log=None,verbose=None):
 				ap = -fp[1]
 				evs_modp[q] = ap
 			hecke[q] = FC.possible_Artin_polys(evs_modp[q].minpoly(),chi,q,p)
+			if len(hecke[q]) == 0:
+				return 0,false,chi
 
 			if len(hecke[q]) > 1:
 				for g in fs:
