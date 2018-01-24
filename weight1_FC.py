@@ -137,7 +137,17 @@ class weight_one_FC(SageObject):
 
 	## returns all possible min polys at ell which mod p have g as a factor
 	## care needs to be taken if ell divides the level
-	def possible_Artin_polys(self,g,chi,ell,p):
+	##
+	##
+	## galois bound given by degree Artin P must satisfy degree(P) <= [Q(a_ell):Q] / gcd([Q(a_ell):Q],[Q(chi):Q])
+	def possible_Artin_polys(self,g,chi,ell,p,upper=None):
+		if upper == None:
+			upper = Infinity
+
+		### only doubled away from p
+		if ell == p:
+			upper *= 2
+
 		N = chi.modulus()
 		Nc = chi.conductor()
 		Rp = PolynomialRing(GF(p),'x')
@@ -154,7 +164,20 @@ class weight_one_FC(SageObject):
 		else:
 			return []
 
-		return [P for P in polys if Rp(P) % g == 0]				
+		### picking polys which (a) mod p are divisible by g
+		###						(b) whose degree is not so large that there will be more galois conjugates than upper
+		###
+		### could do better by actually factoring over Q(chi).  Is it worth it?
+		d_chi = euler_phi(chi.order())		
+		ans = []
+		for P in polys:
+			if Rp(P) % g == 0:
+				d_ell = P.degree()
+				gc = gcd(d_chi,d_ell)
+				if d_ell / gc <= upper:
+					ans += [P]
+#		return [P for P in polys if Rp(P) % g == 0 and P.degree() <= upper]				
+		return ans
 
 
 def even(f):

@@ -184,6 +184,7 @@ class EigenDecomp(SageObject):
 
 	def lift_to_char0_minpolys(self,j,exclude=[],sturm=None):
 		chi = self.chi()
+		upper = self.upper_bound()
 		p = self.p()
 		N = chi.modulus()
 		h = self.hecke_polys(j,exclude=[p],sturm=sturm)
@@ -194,67 +195,64 @@ class EigenDecomp(SageObject):
 		### Getting minpolys away from p
 		for q in h.keys():
 			if q != p and exclude.count(q) == 0:
-				h0[q] = FC.possible_Artin_polys(h[q],chi,q,p)
+				h0[q] = FC.possible_Artin_polys(h[q],chi,q,p,upper=upper)
+				## Mild Galois conjugate check
 				if len(h0[q]) == 0:
 					fail = true
 
 		if exclude.count(p) == 0:
-			### Here's how we handle p
-			### 
-			M = self[j]
-			kchi = M.base_ring()
-			R = PolynomialRing(kchi,'x')
-			ans = 1
-			for q in h.keys():
-				ans *= R(h[q])
+			# ### Here's how we handle p
+			# ### 
+			# M = self[j]
+			# kchi = M.base_ring()
+			# R = PolynomialRing(kchi,'x')
+			# ans = 1
+			# for q in h.keys():
+			# 	ans *= R(h[q])
 
-			d = 1
-			fs = ans.factor()
-			for Q in fs:			
-				d = lcm(d,Q[0].degree())
+			# d = 1
+			# fs = ans.factor()
+			# for Q in fs:			
+			# 	d = lcm(d,Q[0].degree())
 
-			if d > 1:
-				kf = kchi.extension(d,'a')
-			else:
-				kf = kchi
+			# if d > 1:
+			# 	kf = kchi.extension(d,'a')
+			# else:
+			# 	kf = kchi
 
-			phibar = Hom(kchi,kf)[0]  ## what am I choosing here???? CHECK THIS!
-			d = M.dimension()
-			V = kf**d 
-			W = V
-			Ws = [W]
-			r = 0
-			while W.dimension() > 2 and r < len(h.keys()):		
-				q = h.keys()[r]
-				if q != p:
-					T = M.hecke_operator(q)
-					A = T.matrix()
-					A = A.apply_map(phibar)
-					for WW in Ws:
-						A = A.restrict(WW)
-					W = A.left_eigenspaces()[0][1]
-					Ws.append(W)
-				r += 1
+			# phibar = Hom(kchi,kf)[0]  ## what am I choosing here???? CHECK THIS!
+			# d = M.dimension()
+			# V = kf**d 
+			# W = V
+			# Ws = [W]
+			# r = 0
+			# while W.dimension() > 2 and r < len(h.keys()):		
+			# 	q = h.keys()[r]
+			# 	if q != p:
+			# 		T = M.hecke_operator(q)
+			# 		A = T.matrix()
+			# 		A = A.apply_map(phibar)
+			# 		for WW in Ws:
+			# 			A = A.restrict(WW)
+			# 		W = A.left_eigenspaces()[0][1]
+			# 		Ws.append(W)
+			# 	r += 1
 
-			fail = W.dimension()<2
+			# fail = W.dimension()<2
 
-			T = M.hecke_operator(p)
-			A = T.matrix()
-			A = A.apply_map(phibar)
-			for WW in Ws:
-				A = A.restrict(WW)
-			f = A.charpoly()
-			ap = -f[1]
-			ans = ap.minpoly()
-			h0[p] = FC.possible_Artin_polys(ans,chi,p,p)
+			# T = M.hecke_operator(p)
+			# A = T.matrix()
+			# A = A.apply_map(phibar)
+			# for WW in Ws:
+			# 	A = A.restrict(WW)
+			# f = A.charpoly()
+			# ap = -f[1]
+			# ans = ap.minpoly()
+			fp,fail = find_ap_minpoly(self[j],h=h)
+			h0[p] = FC.possible_Artin_polys(fp,chi,p,p,upper=upper)
 			if len(h0[p]) == 0:
 				fail = true
 			
-		### mild galois conjugate check
-		for q in h0.keys():
-			if q != p:
-				h0[q] = [P for P in h0[q] if 2 * P.degree() <= self.dimension() * euler_phi(chi.order())]  ## is this right at p?
-
 		return weight_one_form(chi,h0,space=EigenDecomp(self[j],self.chi(),self._pchi)),not fail
 
 	def upper_bound(self):
@@ -384,14 +382,65 @@ def unique(d):
 
 
 
-def find_ap_minpoly(pi_p):
-	F,phi = pi_p.splitting_field('a',map=true)
-	rs = pi_p.map_coefficients(phi).roots()
-	assert len(rs) <= 2 and len(rs)>=1,"problem at p in find_ap_minpoly"
-	alpha = rs[0][0]
-	if len(rs) == 1:  ## alpha = beta
-		ans = (2*alpha).minpoly()
-	else:
-		beta = rs[1][0]
-		ans = (alpha+beta).minpoly()
-	return ans
+# def find_ap_minpoly(pi_p):
+# 	F,phi = pi_p.splitting_field('a',map=true)
+# 	rs = pi_p.map_coefficients(phi).roots()
+# 	assert len(rs) <= 2 and len(rs)>=1,"problem at p in find_ap_minpoly"
+# 	alpha = rs[0][0]
+# 	if len(rs) == 1:  ## alpha = beta
+# 		ans = (2*alpha).minpoly()
+# 	else:
+# 		beta = rs[1][0]
+# 		ans = (alpha+beta).minpoly()
+#	return ans
+
+## h is a dictionary which send q to a polynomial f_q
+## M is space of modular symbols for T_q acts by f_q to a power
+def find_ap_minpoly(M,h=None,kf=None):
+	kchi = M.base_ring()
+	p = kchi.characteristic()
+	R = PolynomialRing(kchi,'x')
+	if kf == None:
+		ans = 1
+		for q in h.keys():
+			ans *= R(h[q])
+
+		d = 1
+		fs = ans.factor()
+		for Q in fs:			
+			d = lcm(d,Q[0].degree())
+
+		if d > 1:
+			kf = kchi.extension(d,'a')
+		else:
+			kf = kchi
+
+	phibar = Hom(kchi,kf)[0]  ## what am I choosing here???? CHECK THIS!
+	d = M.dimension()
+	V = kf**d 
+	W = V
+	Ws = [W]
+	q = 2
+	while W.dimension() > 2 and q < STURM:		
+		if q != p:
+			T = M.hecke_operator(q)
+			A = T.matrix()
+			A = A.apply_map(phibar)
+			for WW in Ws:
+				A = A.restrict(WW)
+			W = A.left_eigenspaces()[0][1]
+			Ws.append(W)
+		q = next_prime(q)
+
+	fail = W.dimension()<2
+
+	T = M.hecke_operator(p)
+	A = T.matrix()
+	A = A.apply_map(phibar)
+	for WW in Ws:
+		A = A.restrict(WW)
+	f = A.charpoly()
+	ap = -f[1]
+	ans = ap.minpoly()
+
+	return ans,fail
