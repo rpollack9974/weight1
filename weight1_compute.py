@@ -75,7 +75,7 @@ def wt1(chi,sturm=None,log=None,verbose=false):
 							fs += [g]
 							break
 				Kf = f.FC_field()
-				d = Kf.disc()
+				d = f.disc()
 				for g in fs:
 					p = g.p()
 					if d % p != 0:
@@ -175,8 +175,7 @@ def cut_down_to_unique(chi,sturm=None,log=None,verbose=false):
 					poly = 1
 					for q in f.primes():
 						poly *= f[q][0]
-					Lf = poly.splitting_field('a')
-					d = Lf.disc()
+					d = poly.disc()
 					for q in primes_used:
 						bool = bool or d % q != 0
 					unramified_prime = unramified_prime and bool
@@ -532,6 +531,7 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 			if len(hecke[q]) == 0:
 				return 0,false,chi
 
+			print q,hecke[q]
 			if len(hecke[q]) > 1:
 				for g in fs:
 					if g.p() != p:
@@ -547,6 +547,7 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 						else:
 							ans,fail = find_ap_minpoly(Mg,kf=kg)
 							pi_qs = FC.possible_Artin_polys(ans,chi,q,q)
+						print q,pi_qs
 						if len(pi_qs) == 0:
 							fail = true
 							break  ### LOOKS LIKE I"m NOT BREAKING FAR ENOUGH
@@ -559,6 +560,7 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 						if len(hecke[q]) == 0:
 							fail = true
 
+			print "ans:",hecke[q]
 			if fail:
 				return 0,not fail,chi
 

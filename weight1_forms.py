@@ -358,6 +358,13 @@ class weight_one_form(SageObject):
 			poly *= self[q][0]
 		return poly.splitting_field('a')
 
+	### returns the discriminant of the product of all min polys
+	def disc(self):
+		poly = 1
+		for q in self.primes():
+			poly *= self[q][0]
+		return poly.disc()
+
 	def grab_eigens(self,Kf=None,sturm=None,verbose=false):		
 		t,pf,phibar,bool = self.space().grab_eigens(0,Kf=Kf,sturm=sturm,verbose=verbose)
 		self._phibar = phibar
