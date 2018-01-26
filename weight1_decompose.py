@@ -201,53 +201,8 @@ class EigenDecomp(SageObject):
 					fail = true
 
 		if exclude.count(p) == 0:
-			# ### Here's how we handle p
-			# ### 
-			# M = self[j]
-			# kchi = M.base_ring()
-			# R = PolynomialRing(kchi,'x')
-			# ans = 1
-			# for q in h.keys():
-			# 	ans *= R(h[q])
-
-			# d = 1
-			# fs = ans.factor()
-			# for Q in fs:			
-			# 	d = lcm(d,Q[0].degree())
-
-			# if d > 1:
-			# 	kf = kchi.extension(d,'a')
-			# else:
-			# 	kf = kchi
-
-			# phibar = Hom(kchi,kf)[0]  ## what am I choosing here???? CHECK THIS!
-			# d = M.dimension()
-			# V = kf**d 
-			# W = V
-			# Ws = [W]
-			# r = 0
-			# while W.dimension() > 2 and r < len(h.keys()):		
-			# 	q = h.keys()[r]
-			# 	if q != p:
-			# 		T = M.hecke_operator(q)
-			# 		A = T.matrix()
-			# 		A = A.apply_map(phibar)
-			# 		for WW in Ws:
-			# 			A = A.restrict(WW)
-			# 		W = A.left_eigenspaces()[0][1]
-			# 		Ws.append(W)
-			# 	r += 1
-
-			# fail = W.dimension()<2
-
-			# T = M.hecke_operator(p)
-			# A = T.matrix()
-			# A = A.apply_map(phibar)
-			# for WW in Ws:
-			# 	A = A.restrict(WW)
-			# f = A.charpoly()
-			# ap = -f[1]
-			# ans = ap.minpoly()
+			hp = self[j].hecke_polynomial(p)
+			assert len(hp.factor()) <= 2, "have not decomposed far enough (seen at p)"
 			fp,fail = find_ap_minpoly(self[j],h=h)
 			h0[p] = FC.possible_Artin_polys(fp,chi,p,p,upper=upper)
 			if len(h0[p]) == 0:
@@ -445,10 +400,3 @@ def find_ap_minpoly(M,h=None,kf=None):
 
 	return ans,fail
 
-def square_free(f):
-	facts = f.factor()
-	ans = 1
-	for Q in facts:
-		ans *= Q[0]
-
-	return ans

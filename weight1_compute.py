@@ -6,10 +6,10 @@
 ### STURM is a global variable which gives the bound to which all initial Hecke decompositions are done
 STURM = 20
 
-def collect_wt1_data(Nmin,Nmax,sturm=None,verbose=false):
+def collect_wt1_data(Nmin,Nmax,sturm=None,verbose=false,pass_buck=false):
 #	t = cputime()
 	for N in range(Nmin,Nmax+1):
-		log = "DATA/wt1."+str(N)+".log"
+		log = "DATA/LOGS/wt1."+str(N)+".log"
 		G = DirichletGroup(N)
 		Gc = G.galois_orbits()
 		Gc = [psi[0] for psi in Gc if psi[0](-1)==-1 and no_steinberg(psi[0])]
@@ -31,10 +31,10 @@ def collect_wt1_data(Nmin,Nmax,sturm=None,verbose=false):
 			# file = open(log,'a')
 			# file.write("\nWorking with "+str(chi)+"\n")
 			# file.close()
-			A = wt1(chi,log=log,verbose=verbose)
+			A = wt1(chi,log=log,verbose=verbose,pass_buck=pass_buck)
 #			output(log,verbose,0,"time: "+str(cputime(t))+"\n")
 
-def wt1(chi,sturm=None,log=None,verbose=false):
+def wt1(chi,sturm=None,log=None,verbose=false,pass_buck=false):
 	"""Computes the space of weight 1 forms with character chi
 	
 	INPUT:
@@ -56,54 +56,60 @@ def wt1(chi,sturm=None,log=None,verbose=false):
 		output(log,verbose,0,"time: "+str(cputime(t))+"\n")
 		return []
 	else:
-		upper = upper_bound(U)
-		lower = 0
-		for S in U:
-			if S.unique():
-				break
-		N = chi.modulus()
-		strong_sturm = ceil(Gamma0(N).index() / 3)
-		output(log,verbose,1,"Computing to higher precision")
-		forms_used = []
-		for f in S.forms():
-			if forms_used.count(f) == 0:
-				forms_used += [f]
-				fs = [f]
-				for r in range(1,len(U)):
-					for g in U[r]:
-						if g == f:
-							fs += [g]
+		if not pass_buck:
+			upper = upper_bound(U)
+			lower = 0
+			for S in U:
+				if S.unique():
+					break
+			N = chi.modulus()
+			strong_sturm = ceil(Gamma0(N).index() / 3)
+			output(log,verbose,1,"Computing to higher precision")
+			forms_used = []
+			for f in S.forms():
+				if forms_used.count(f) == 0:
+					forms_used += [f]
+					fs = [f]
+					for r in range(1,len(U)):
+						for g in U[r]:
+							if g == f:
+								fs += [g]
+								break
+					Kf = f.FC_field()
+					d = f.disc()
+					for g in fs:
+						p = g.p()
+						if d % p != 0:
 							break
-				Kf = f.FC_field()
-				d = f.disc()
-				for g in fs:
-					p = g.p()
-					if d % p != 0:
-						break
-				fq,bool,chi = form_qexp(g,fs,upper,log=log,verbose=verbose)
-				if bool:
-					bool = verify(fq,chi,log=log,verbose=verbose)
+					fq,bool,chi = form_qexp(g,fs,upper,log=log,verbose=verbose)
 					if bool:
-						ans += [fq]
-						lower += f.degree() / euler_phi(chi.order())
+						bool = verify(fq,chi,log=log,verbose=verbose)
+						if bool:
+							ans += [fq]
+							lower += f.degree() / euler_phi(chi.order())
+						else:
+							output(log,verbose,1,"Failed to verify")
 					else:
-						output(log,verbose,1,"Failed to verify")
-				else:
-					output(log,verbose,2,"failed!")
-					while U[0].multiplicity(f) > 0:
-						U[0].remove(f)
-					if U[0].num_forms() == 0:
-						upper = 0
-						break
-					upper = upper_bound(U)
+						output(log,verbose,2,"failed!")
+						while U[0].multiplicity(f) > 0:
+							U[0].remove(f)
+						if U[0].num_forms() == 0:
+							upper = 0
+							break
+						upper = upper_bound(U)
 
-		if lower != upper:
-			output(log+str('.fail'),verbose,0,str(chi))
-			output(log+str('.fail'),verbose,0,"lower = "+str(lower)+"; upper = "+str(upper))
+			if lower != upper:
+				output(log+str('.fail'),verbose,0,str(chi))
+				output(log+str('.fail'),verbose,0,"lower = "+str(lower)+"; upper = "+str(upper))
 
-		output(log,verbose,0,"time: "+str(cputime(t))+"\n")
+			output(log,verbose,0,"time: "+str(cputime(t))+"\n")
 
-		return ans,lower == upper
+			return ans,lower == upper
+		else:
+			output(log,verbose,-1,"PASSING THE BUCK ON THIS ONE!!!")
+			output("DATA/hard_levels",verbose,-1,str(chi.modulus()))
+			output(log,verbose,0,"time: "+str(cputime(t))+"\n")
+			return chi
 
 def add_on_another_prime(chi,spaces,p,sturm=None,log=None,verbose=false):
 	if sturm == None:
