@@ -6,9 +6,13 @@
 ### STURM is a global variable which gives the bound to which all initial Hecke decompositions are done
 STURM = 20
 
-def collect_wt1_data(Nmin,Nmax,sturm=None,verbose=false,pass_buck=false):
+def collect_wt1_data(Nmin=None,Nmax=None,Ns=None,sturm=None,verbose=false,pass_buck=false):
 #	t = cputime()
-	for N in range(Nmin,Nmax+1):
+	if Ns != None:
+		v = Ns
+	else:
+		v = range(Nmin,Nmax+1)
+	for N in v:
 		log = "DATA/LOGS/wt1."+str(N)+".log"
 		G = DirichletGroup(N)
 		Gc = G.galois_orbits()
