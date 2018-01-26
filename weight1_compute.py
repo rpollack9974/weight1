@@ -61,6 +61,8 @@ def wt1(chi,sturm=None,log=None,verbose=false,pass_buck=false):
 		return []
 	else:
 		if not pass_buck:
+			need_more_primes = false
+			bad_fs = []
 			upper = upper_bound(U)
 			lower = 0
 			for S in U:
@@ -85,22 +87,69 @@ def wt1(chi,sturm=None,log=None,verbose=false,pass_buck=false):
 						p = g.p()
 						if d % p != 0:
 							break
-					fq,bool,chi = form_qexp(g,fs,upper,log=log,verbose=verbose)
-					if bool:
+					fq,bool,need_more_primes,chi = form_qexp(g,fs,upper,log=log,verbose=verbose)
+					if need_more_primes:
+						bad_fs += [g]
+					elif bool:
 						bool = verify(fq,chi,log=log,verbose=verbose)
 						if bool:
 							ans += [fq]
 							lower += f.degree() / euler_phi(chi.order())
 						else:
 							output(log,verbose,1,"Failed to verify")
+							while U[0].multiplicity(f) > 0:
+								U[0].remove(f)
+							if U[0].num_forms() == 0:
+								upper = 0
+								break
+							upper = upper_bound(U)
 					else:
-						output(log,verbose,2,"failed!")
+						output(log,verbose,2,"Failed to verify!")
 						while U[0].multiplicity(f) > 0:
 							U[0].remove(f)
 						if U[0].num_forms() == 0:
 							upper = 0
 							break
 						upper = upper_bound(U)
+
+			for f in bad_fs:
+				if need_more_primes:
+					primes_used = [S.p() for S in U]
+					pmax = max(primes_used)
+					p = next_prime(p)
+					U = add_on_another_prime(chi,U,p,sturm=sturm,log=log,verbose=verbose)
+					upper = upper_bound(U)
+				fs = [f]
+				for r in range(1,len(U)):
+					for g in U[r]:
+						if g == f:
+							fs += [g]
+							break
+				fq,bool,need_more_primes,chi = form_qexp(f,fs,upper,log=log,verbose=verbose)
+				if need_more_primes:
+					bad_fs += [g]
+				elif bool:
+					bool = verify(fq,chi,log=log,verbose=verbose)
+					if bool:
+						ans += [fq]
+						lower += f.degree() / euler_phi(chi.order())
+					else:
+						output(log,verbose,1,"Failed to verify")
+						while U[0].multiplicity(f) > 0:
+							U[0].remove(f)
+						if U[0].num_forms() == 0:
+							upper = 0
+							break
+						upper = upper_bound(U)
+				else:
+					output(log,verbose,1,"Failed to verify!")
+					while U[0].multiplicity(f) > 0:
+						U[0].remove(f)
+					if U[0].num_forms() == 0:
+						upper = 0
+						break
+					upper = upper_bound(U)
+
 
 			if lower != upper:
 				output(log+str('.fail'),verbose,0,str(chi))
@@ -511,6 +560,8 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 	kf = pf.residue_field()
 	phibar = Hom(kchi,kf)[0]
 
+	need_more_primes = false
+
 	d = M.dimension()
 	V = kf**d 
 	W = V
@@ -531,7 +582,7 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 	fail = W.dimension() < 2
 	if fail:
 		print "failed in ???!"
-		return 0,not fail,chi
+		return 0,not fail,need_more_prime,chi
 	## confused here by the 190 example but maybe dimension can still be 1 at this point
 
 	if not fail:
@@ -556,7 +607,7 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 				evs_modp[q] = ap
 			hecke[q] = FC.possible_Artin_polys(evs_modp[q].minpoly(),chi,q,p,upper=upper)
 			if len(hecke[q]) == 0:
-				return 0,false,chi
+				return 0,false,need_more_primes,chi
 
 #			print q,hecke[q]
 			if len(hecke[q]) > 1:
@@ -589,39 +640,46 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 
 #			print "ans:",hecke[q]
 			if fail:
-				return 0,not fail,chi
+				return 0,not fail,need_more_primes,chi
 
-			assert len(hecke[q]) == 1,"didn't cut down to unique min poly"
-			fq = hecke[q][0]
-			rs = R(fq).roots()
-			done = false
-			j = 0
-			possible_lifts = [r[0] for r in rs if evs_modp[q] == kf(r[0])]
-			assert len(possible_lifts)>0, "no congruent root found "+str(rs)+str(fq)
-			assert len(possible_lifts)==1, "lift not unique!"
-			evs[q] = possible_lifts[0]
+			if len(hecke[q]) != 1:
+				need_more_primes = True
+				break
+			else:
+				fq = hecke[q][0]
+				rs = R(fq).roots()
+				done = false
+				j = 0
+				possible_lifts = [r[0] for r in rs if evs_modp[q] == kf(r[0])]
+				assert len(possible_lifts)>0, "no congruent root found "+str(rs)+str(fq)
+				assert len(possible_lifts)==1, "lift not unique!"
+				evs[q] = possible_lifts[0]
 
-		### Looking for phi: K_chi --> K_f consistent with other choices
-		Kchi = chi(1).parent()
-		if Kchi == QQ:
-			Kchi = CyclotomicField(2)
-		pchi = f.space()._pchi
-		found = false
-		r = 0
-		H = Hom(Kchi,Kf)
-		while not found:
-			phi = H[r]
-			found = phibar(kchi(Kchi.gen())) == kf(phi(Kchi.gen()))
-			r += 1
-		chi = chi.change_ring(phi)  ### do i want to do this?
+		if not need_more_primes:
+			### Looking for phi: K_chi --> K_f consistent with other choices
+			Kchi = chi(1).parent()
+			if Kchi == QQ:
+				Kchi = CyclotomicField(2)
+			pchi = f.space()._pchi
+			found = false
+			r = 0
+			H = Hom(Kchi,Kf)
+			while not found:
+				phi = H[r]
+				found = phibar(kchi(Kchi.gen())) == kf(phi(Kchi.gen()))
+				r += 1
+			chi = chi.change_ring(phi)  ### do i want to do this?
 
-		R = PowerSeriesRing(Kf,'q')
-		q = R.gens()[0]
-		ans = 0
-		for n in range(1,strong_sturm):
-			ans += an(evs,n,chi) * q**n
+			R = PowerSeriesRing(Kf,'q')
+			q = R.gens()[0]
+			ans = 0
+			for n in range(1,strong_sturm):
+				ans += an(evs,n,chi) * q**n
 
-		return ans,not fail,chi
+			return ans,not fail,need_more_primes,chi
+		else:
+			output(log,verbose,1,"Min polys not uniquely determined: need to compute with more primes")
+			return 0,not fail,need_more_primes,chi
 
 def an(evs,n,chi):
 	if n == 1:
