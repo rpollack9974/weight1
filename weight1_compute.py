@@ -240,7 +240,7 @@ def verify(fq,chi,log=None,verbose=false):
 		output(log,verbose,-1,"Weight 1 form: "+str(fq))
 		if bool:
 			if log != None:
-				file = open("wt1.data",'a')
+				file = open("DATA/wt1.data",'a')
 				file.write(str(chi)+'\n')
 				a = chi.base_ring().gen()
 				file.write(str(a)+' satisfies '+str(a.minpoly())+'\n')
