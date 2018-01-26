@@ -213,7 +213,7 @@ class EigenDecomp(SageObject):
 	def upper_bound(self):
 		ans = 0
 		for j in range(self.num_spaces()):
-			ans += floor(self[j].dimension() * self[j].base_ring().degree() / 2)
+			ans += floor(self[j].dimension() / 2)
 		return ans
 
 	def lower_bound(self):
