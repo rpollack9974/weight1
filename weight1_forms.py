@@ -363,6 +363,7 @@ class weight_one_form(SageObject):
 		poly = 1
 		for q in self.primes():
 			poly *= self[q][0]
+		poly = square_free(poly)
 		return poly.disc()
 
 	def grab_eigens(self,Kf=None,sturm=None,verbose=false):		
@@ -710,4 +711,11 @@ class weight_one_space(SageObject):
 
 
 
+def square_free(f):
+	facts = f.factor()
+	ans = 1
+	for Q in facts:
+		ans *= Q[0]
+
+	return ans
 	

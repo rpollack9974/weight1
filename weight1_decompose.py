@@ -444,3 +444,11 @@ def find_ap_minpoly(M,h=None,kf=None):
 	ans = ap.minpoly()
 
 	return ans,fail
+
+def square_free(f):
+	facts = f.factor()
+	ans = 1
+	for Q in facts:
+		ans *= Q[0]
+
+	return ans

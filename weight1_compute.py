@@ -3,44 +3,36 @@
 ##	     --- fix the upper bound stuff for FC at p.
 
 
-
-
-
-
 ### STURM is a global variable which gives the bound to which all initial Hecke decompositions are done
 STURM = 20
 
 def collect_wt1_data(Nmin,Nmax,sturm=None,verbose=false):
 	t = cputime()
-	log = "DATA/wt1."+str(Nmin)+"-"+str(Nmax)+".log"
 	for N in range(Nmin,Nmax+1):
+		log = "DATA/wt1."+str(N)+".log"
 		G = DirichletGroup(N)
 		Gc = G.galois_orbits()
 		Gc = [psi[0] for psi in Gc if psi[0](-1)==-1 and no_steinberg(psi[0])]
 		if verbose > 0:
 			print "----------------------------------------------------"
 			print "Working with level",N
-			print " There are",len(Gc),"spaces to consider"
+			print " There are",len(Gc),"space(s) to consider\n"
 		file = open(log,'a')
 		file.write("\n------------------------------------------------\n")
 		file.write("Working with level "+str(N)+"\n")
-		file.write(" There are "+str(len(Gc))+" spaces to consider\n")
+		file.write(" There are "+str(len(Gc))+" space(s) to consider\n\n")
 		file.close()
 
 		for chi in Gc:
 			chi = convert_character_to_database(chi)
 			chi = chi.minimize_base_ring()
-			if verbose > 0:
-				print "\nWorking with",chi
-			file = open(log,'a')
-			file.write("\nWorking with "+str(chi)+"\n")
-			file.close()
+			# if verbose > 0:
+			# 	print "\nWorking with",chi
+			# file = open(log,'a')
+			# file.write("\nWorking with "+str(chi)+"\n")
+			# file.close()
 			A = wt1(chi,log=log,verbose=verbose)
-			if verbose > 0:
-				print "time:",cputime(t)
-			file = open(log,'a')
-			file.write("time: "+str(cputime(t))+"\n")
-			file.close()
+			output(log,verbose,0,"time: "+str(cputime(t))+"\n")
 
 def wt1(chi,sturm=None,log=None,verbose=false):
 	"""Computes the space of weight 1 forms with character chi
@@ -52,6 +44,12 @@ def wt1(chi,sturm=None,log=None,verbose=false):
     A list of the q-expansions (up to Galois conjugacy) of the weight 1 forms with nebentype chi
 	"""
 	ans = []
+	output(log,verbose,1,"Working with "+str(chi))
+	if CM.keys().count(chi) > 0:
+		lb = len(CM[chi])
+	else:
+		lb = 0
+	output(log,verbose,1," There are "+str(lb)+" CM form(s).")
 	U = cut_down_to_unique(chi,sturm=sturm,log=log,verbose=verbose)
 	if U[0].num_forms() == 0:
 		return []
@@ -107,14 +105,10 @@ def add_on_another_prime(chi,spaces,p,sturm=None,log=None,verbose=false):
 	if sturm == None:
 		sturm = STURM
 	N = chi.modulus()
-	if verbose > 1:
-		print "Working with p =",p
-	if log != None:
-		file = open(log,'a')
-		file.write(" Working with p = "+str(p)+": \n")
-		file.close()
 
 	Sp = wt1_space_modp(p,chi,sturm=sturm,verbose=verbose,log=log)
+	if Sp.num_forms() > 0:
+		output(log,verbose,2,"    Intersecting")
 	for Sq in spaces:
 		Sp = Sp.intersect(Sq)
 	for i in range(len(spaces)):
@@ -125,7 +119,18 @@ def add_on_another_prime(chi,spaces,p,sturm=None,log=None,verbose=false):
 		spaces[i] = spaces[i].intersect(Sp)
 	spaces += [Sp]
 	if Sp.num_forms() > 0:
-		output(log,verbose,1,"  -Found something\n")
+		output(log,verbose,1,"  -Found something")
+		output(log,verbose,2,"DATA so far")
+		for S in spaces:
+			p = S.p()
+			output(log,verbose,2,"prime "+str(p)+":")
+			forms = S.forms()
+			used = []
+			for f in forms:
+				if used.count(f) == 0:
+					output(log,verbose,2,str(f))
+				used += [f]
+
 	return spaces
 
 
@@ -147,6 +152,11 @@ def cut_down_to_unique(chi,sturm=None,log=None,verbose=false):
 	while not (empty and started) and not (unique and unramified_prime):
 		if gcd(p,chi.modulus()) == 1:
 			primes_used += [p]
+			if started:
+				if not unique:
+					output(log,verbose,1,"Min polys of FC not yet uniquely defined")
+				if not unramified_prime:
+					output(log,verbose,1,"No prime found yet with unique liftings of mod p e-vals")
 			spaces = add_on_another_prime(chi,spaces,p,sturm=sturm,log=log,verbose=verbose)
 			started = true
 
@@ -162,20 +172,15 @@ def cut_down_to_unique(chi,sturm=None,log=None,verbose=false):
 			for Sq in spaces:
 				unique = unique or Sq.unique()
 			if unique and not empty:
-				# ### I think a non-unique space at this time points to a congruence between true weight 1 forms
-				# ### So we just throw away data from that prime as it messes up our intersection stuff
-				# for Sq in spaces:
-				# 	if not Sq.unique():
-				# 		spaces.remove(Sq)
-				# 		print "THrowing away",Sq,"because of congruence?"
 				unramified_prime = true
 				for f in spaces[0]:
 					bool = false
-					#### USE FC_field HERE!!!
 					poly = 1
 					for q in f.primes():
 						poly *= f[q][0]
+					poly = square_free(poly)
 					d = poly.disc()
+#					output(log,verbose,3,"polynomial discriminant is: "+str(d.factor()))
 					for q in primes_used:
 						bool = bool or d % q != 0
 					unramified_prime = unramified_prime and bool
@@ -243,6 +248,8 @@ def wt1_space_modp(p,chi,verbose=False,sturm=None,log=None):
 	"""
 	Returns a sum of Hecke-eigenspaces in weight p which are eigen-doubled and of Artin-type
 	"""
+	output(log,verbose,1,"   Working with p = "+str(p)+":")
+
 	Kchi = chi(1).parent()
 	### THIS IS AN IMPORTANT CHOICE AND MUST BE KEPT TRACK OF
 	if Kchi != QQ:
@@ -250,14 +257,17 @@ def wt1_space_modp(p,chi,verbose=False,sturm=None,log=None):
 	else:
 		pchi = ideal(p)
 	M,done = maximal_eigendoubled_Artin(chi,p,pchi,sturm,log=log,verbose=verbose)
+	output(log,verbose,1,"    Maximal Artin eigendoubled subspace at "+str(p)+" has dimension "+str(M.dimension())+
+		" which gives an upper bound of "+str(floor(M.dimension()/2)))
 	if done:
-		output(log,verbose,2,"  done by lower/upper bound considerations")
+		output(log,verbose,1,"done by lower/upper bound considerations")
 		return weight_one_space([])
 	else:
 		D = decompose(M,chi,sturm,[p],p,log,verbose)
+		output(log,verbose,1,"    After decomposition into eigenspaces the upper bound is "+str(D.upper_bound()))
 		D._pchi = pchi
 		if D.upper_bound() == D.lower_bound():
-			output(log,verbose,2,"  done by lower/upper bound considerations")
+			output(log,verbose,1,"done by lower/upper bound considerations")
 			return weight_one_space([])
 		else:
 			if p > 2:
@@ -272,7 +282,7 @@ def maximal_eigendoubled_Artin(chi,p,pp,sturm,log=None,verbose=False):
 	N = chi.modulus()
 
 	kk = pp.residue_field()
-	output(log,verbose,2,"Forming modsym space")
+	output(log,verbose,3,"     Forming modsym space")
 
 	M = ModularSymbols(chi,p,1,kk).cuspidal_subspace().new_subspace()
 	R = PolynomialRing(M.base_ring(),'x')
@@ -293,7 +303,7 @@ def maximal_eigendoubled_Artin(chi,p,pp,sturm,log=None,verbose=False):
 
 	exclude = [p]
 	ell = 2
-	output(log,verbose,2," Passing to maximal Artin eigen-doubled subspace")
+	output(log,verbose,2,"    Passing to maximal Artin eigen-doubled subspace")
 	while (M.dimension() > 2*lb) and (ell<=sturm):  
 	## can we do better here in general?  Are exotic forms never over Q(chi) and thus always come in pairs?
 		if exclude.count(ell) == 0 and N.valuation(ell) == Nc.valuation(ell):
@@ -311,13 +321,13 @@ def maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=False,log=None):
 	R = PolynomialRing(GF(p),'x')
 	x = R.gen()
 
-	output(log,verbose,2,'Using T_'+str(ell)+' on '+str(M.dimension())+'-dimensional space')
+	output(log,verbose,2,'      Using T_'+str(ell)+' on '+str(M.dimension())+'-dimensional space')
 
 	T_ell = M.hecke_operator(ell)
 	f_ell = T_ell.charpoly()
 	facts = f_ell.factor()
 
-	output(log,verbose,2,'  Collecting irreducible factors with doubled socle and Artin type')
+	output(log,verbose,3,'       Collecting irreducible factors with doubled socle and Artin type')
 
 	f_passed = 1
 	passed = false
@@ -325,7 +335,7 @@ def maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=False,log=None):
 		g = D[0]
 		e = D[1]
 		if e > 1:  ## doubled
-			output(log,verbose,2,'    Poly = '+str(g)+' is doubled.  Checking Artin and eigen-doubled')
+			output(log,verbose,3,'        Poly = '+str(g)+' is doubled.  Checking Artin and eigen-doubled')
 
 			v = FC.possible_Artin_polys(g,chi,ell,p,upper=floor(M.dimension()/2))
 				### upper bound above rejects artin polys whose degree is too big to be plausible in this space
@@ -333,16 +343,16 @@ def maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=False,log=None):
 				socle = g.substitute(T_ell).kernel()
 				passed = socle.dimension() >= 2*g.degree()
 				if passed:
-					output(log,verbose,2,"      passed --- eigen-doubled and Artin")
+					output(log,verbose,3,"         passed --- eigen-doubled and Artin")
 				else:
-					output(log,verbose,2,"      not eigen-doubled")
+					output(log,verbose,3,"         not eigen-doubled")
 			else:
-				output(log,verbose,2,"      not Artin")
+				output(log,verbose,3,"         not Artin")
 				passed = false
 			if passed:
 				f_passed *= g**e
 	if f_passed != 1:
-		output(log,verbose,2,"Restricting to "+str(f_passed.factor()))
+		output(log,verbose,3,"      Restricting to "+str(f_passed.factor()))
 		M = (f_passed.substitute(T_ell)).kernel()
 	else:
 		M = M.zero_submodule()
@@ -352,9 +362,9 @@ def maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=False,log=None):
 def decompose(M,chi,sturm,exclude,p,log=None,verbose=false):
 	if sturm == None:
 		sturm = STURM
-	output(log,verbose,2,"Decomposing by Hecke away from p")
+	output(log,verbose,2,"    Decomposing by Hecke away from p")
 	D = EigenDecomp(decompose_helper([M],sturm,exclude,log=log,verbose=verbose),chi)
-	output(log,verbose,2,"Verifying that each Hecke-system is still eigen-doubled")
+	output(log,verbose,3,"    Verifying that each Hecke-system is still eigen-doubled")
 	bad_spaces = []
 	for r in range(D.num_spaces()):
 		if D.eigen_multiplicity(r,exclude,sturm=sturm) < 2:
@@ -369,7 +379,7 @@ def decompose_helper(Ms,sturm,exclude,log=None,verbose=false):
 	newMs = Ms
 	for q in primes(sturm+1):
 		if exclude.count(q)==0:
-			output(log,verbose,2,"decomposing at "+str(q))
+			output(log,verbose,3,"      decomposing with Hecke operator at "+str(q))
 			newMs = decompose_helper_at_q(newMs,q,log=log,verbose=verbose)
 	return newMs
 
@@ -531,7 +541,7 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 			if len(hecke[q]) == 0:
 				return 0,false,chi
 
-			print q,hecke[q]
+#			print q,hecke[q]
 			if len(hecke[q]) > 1:
 				for g in fs:
 					if g.p() != p:
@@ -547,7 +557,7 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 						else:
 							ans,fail = find_ap_minpoly(Mg,kf=kg)
 							pi_qs = FC.possible_Artin_polys(ans,chi,q,q)
-						print q,pi_qs
+#						print q,pi_qs
 						if len(pi_qs) == 0:
 							fail = true
 							break  ### LOOKS LIKE I"m NOT BREAKING FAR ENOUGH
@@ -560,7 +570,7 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 						if len(hecke[q]) == 0:
 							fail = true
 
-			print "ans:",hecke[q]
+#			print "ans:",hecke[q]
 			if fail:
 				return 0,not fail,chi
 
