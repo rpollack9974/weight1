@@ -237,6 +237,8 @@ def verify(fq,chi,log=None,verbose=false):
 		if log != None:
 			file = open(log+".data",'a')
 			file.write(str(chi)+'\n')
+			a = chi.base_ring().gen()
+			file.write(str(a)+' satisfies '+str(a.minpoly())+'\n')
 			file.write(str(fq)+'\n')
 			file.write('------\n')
 			file.close()
