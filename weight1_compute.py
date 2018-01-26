@@ -7,7 +7,7 @@
 STURM = 20
 
 def collect_wt1_data(Nmin,Nmax,sturm=None,verbose=false):
-	t = cputime()
+#	t = cputime()
 	for N in range(Nmin,Nmax+1):
 		log = "DATA/wt1."+str(N)+".log"
 		G = DirichletGroup(N)
@@ -32,7 +32,7 @@ def collect_wt1_data(Nmin,Nmax,sturm=None,verbose=false):
 			# file.write("\nWorking with "+str(chi)+"\n")
 			# file.close()
 			A = wt1(chi,log=log,verbose=verbose)
-			output(log,verbose,0,"time: "+str(cputime(t))+"\n")
+#			output(log,verbose,0,"time: "+str(cputime(t))+"\n")
 
 def wt1(chi,sturm=None,log=None,verbose=false):
 	"""Computes the space of weight 1 forms with character chi
@@ -43,6 +43,7 @@ def wt1(chi,sturm=None,log=None,verbose=false):
 	OUTPUT:
     A list of the q-expansions (up to Galois conjugacy) of the weight 1 forms with nebentype chi
 	"""
+	t = cputime()	
 	ans = []
 	output(log,verbose,1,"Working with "+str(chi))
 	if CM.keys().count(chi) > 0:
@@ -52,6 +53,7 @@ def wt1(chi,sturm=None,log=None,verbose=false):
 	output(log,verbose,1," There are "+str(lb)+" CM form(s).")
 	U = cut_down_to_unique(chi,sturm=sturm,log=log,verbose=verbose)
 	if U[0].num_forms() == 0:
+		output(log,verbose,0,"time: "+str(cputime(t))+"\n")
 		return []
 	else:
 		upper = upper_bound(U)
@@ -98,6 +100,8 @@ def wt1(chi,sturm=None,log=None,verbose=false):
 		if lower != upper:
 			output(log+str('.fail'),verbose,0,str(chi))
 			output(log+str('.fail'),verbose,0,"lower = "+str(lower)+"; upper = "+str(upper))
+
+		output(log,verbose,0,"time: "+str(cputime(t))+"\n")
 
 		return ans,lower == upper
 
@@ -234,14 +238,15 @@ def verify(fq,chi,log=None,verbose=false):
 		bool = is_in(fq**2,S,sturm)
 		output(log,verbose,0,"f^2 test is: "+str(bool))
 		output(log,verbose,-1,"Weight 1 form: "+str(fq))
-		if log != None:
-			file = open(log+".data",'a')
-			file.write(str(chi)+'\n')
-			a = chi.base_ring().gen()
-			file.write(str(a)+' satisfies '+str(a.minpoly())+'\n')
-			file.write(str(fq)+'\n')
-			file.write('------\n')
-			file.close()
+		if bool:
+			if log != None:
+				file = open("wt1.data",'a')
+				file.write(str(chi)+'\n')
+				a = chi.base_ring().gen()
+				file.write(str(a)+' satisfies '+str(a.minpoly())+'\n')
+				file.write(str(fq)+'\n')
+				file.write('------\n')
+				file.close()
 
 	return bool
 
