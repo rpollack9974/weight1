@@ -127,29 +127,21 @@ class weight_one_FC(SageObject):
 
 		return ans
 
-	# ## returns all possible min polys at ell which mod p have pi as a factor
-	# def possible_Artin_polys(self,pi,val,p):
-	# 	R = PolynomialRing(GF(p),'x')
-
-	# 	polys = self[val]
-
-	# 	return [P for P in polys if R(P) % pi == 0]				
-
 	## returns all possible min polys at ell which mod p have g as a factor
 	## care needs to be taken if ell divides the level
-	##
 	##
 	## galois bound given by degree Artin P must satisfy degree(P) <= [Q(a_ell):Q] / gcd([Q(a_ell):Q],[Q(chi):Q])
 	def possible_Artin_polys(self,g,chi,ell,p,upper=None):
 		if upper == None:
 			upper = Infinity
 
-		### only doubled away from p
-		if ell == p:
+		N = chi.modulus()
+		### only doubled away from p when p \nmid N
+		if ell == p and N % p !=0:
 			upper *= 2
 
-		N = chi.modulus()
 		Nc = chi.conductor()
+		Nt = N / Nc
 		Rp = PolynomialRing(GF(p),'x')
 		xp = Rp.gen()
 		R = PolynomialRing(QQ,'x')
@@ -157,7 +149,7 @@ class weight_one_FC(SageObject):
 
 		if chi.modulus() % ell != 0:
 			polys = self[chi(ell)]
-		elif N.valuation(ell) == Nc.valuation(ell):
+		elif Nt % ell != 0:
 			polys = self[chi]
 		elif g == xp:
 			return [x]
@@ -174,9 +166,9 @@ class weight_one_FC(SageObject):
 			if Rp(P) % g == 0:
 				d_ell = P.degree()
 				gc = gcd(d_chi,d_ell)
+				### This inquality is in wt1_facts.pdf
 				if d_ell / gc <= upper:
 					ans += [P]
-#		return [P for P in polys if Rp(P) % g == 0 and P.degree() <= upper]				
 		return ans
 
 

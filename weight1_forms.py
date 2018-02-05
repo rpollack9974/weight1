@@ -308,6 +308,7 @@ class weight_one_form(SageObject):
 				
 			return weight_one_form(self.chi(),new_possible_hecke,self.space())
 
+
 	def is_nontrivial(self):
 		"""
 		Determines if there is some minimal polynomial possible for each computed prime
@@ -481,7 +482,7 @@ class weight_one_form(SageObject):
 ##  
 ########################################################################################################
 class weight_one_space(SageObject):
-	def __init__(self,forms):
+	def __init__(self,forms,chi):
 		"""
 		Returns the space of weight 1 forms consisting of the forms listed in the list "forms".
 
@@ -497,6 +498,10 @@ class weight_one_space(SageObject):
 			self._p = forms[0].p()
 		else:
 			self._p = None
+		self._chi = chi
+
+	def chi(self):
+		return self._chi
 
 	def p(self):
 		return self._p
@@ -555,6 +560,22 @@ class weight_one_space(SageObject):
 
 		self._forms.remove(f)
 
+	def remove_completely(self,f):
+		"""
+		Removes all copies of the form f from the space
+
+		INPUT:
+		- f -- weight_one_form
+
+		OUTPUT:
+        
+		None
+		"""
+		assert self.forms().count(f)>0,"Not in space"
+
+		while self.multiplicity(f) > 0:
+			self.remove(f)
+
 	def level(self):
 		"""
 		Returns the level of all forms in this space.
@@ -610,6 +631,23 @@ class weight_one_space(SageObject):
 				mult = mult + 1
 		return mult
 
+	def hecke_multiplicity(self,h):
+		"""
+		Returns the number of forms in self with same hecke min polys as the given data h
+
+		INPUT:
+		- h -- dictionary q --> min poly
+
+		OUTPUT:
+		
+		The number of forms in self with hecke data equal to h
+		"""
+		mult = 0
+		for i in range(self.num_forms()):
+			if self[i].hecke() == h:
+				mult = mult + 1
+		return mult
+
 	def intersect(self,B):
 		"""
 		Returns the space of all forms in self which could also occur in B.
@@ -637,7 +675,7 @@ class weight_one_space(SageObject):
 			if g.is_nontrivial():
 				new_forms += [g]
 
-		return weight_one_space(new_forms)
+		return weight_one_space(new_forms,self.chi())
 
 		# used_up = [False for j in range(self.num_forms())]
 		# for r in range(self.num_forms()):
@@ -671,11 +709,16 @@ class weight_one_space(SageObject):
         
 		True or False
 		"""
+		if self.num_forms() == 0:
+			return false
 		bool = true
 		for f in self:
 			bool = bool and f.is_nontrivial()
 
 		return bool
+
+	def is_trivial(self):
+		return not self.is_nontrivial()
 
 	def unique(self,exclude=[]):
 		"""
@@ -707,9 +750,135 @@ class weight_one_space(SageObject):
 	# 	"""
 	# 	self.form[j] = f
 
+# 	def remove_CM(self):
+# 		if self.num_forms() == 0:
+# 			return None
+# 		sturm = STURM 
+# 		p = self.p()
+# 		chi = self.chi()
+# 		N = chi.modulus()
+# 		Nc = chi.conductor()
+# 		Nt = N / Nc
+# 		bool = true
+# 		for d in divisors(Nt):
+# #			print "Trying divisor",d,Nc,N
+# 			G_old = DirichletGroup(Nc * d)
+# 			chi_old = G_old(chi)
+# 			chi_old = convert_character_to_database(chi_old)
+# 			chi_old = chi_old.minimize_base_ring()
+# 			if CM.keys().count(chi_old) != 0:
+# 				for f in CM[chi_old]:
+# 					eps = f[1]  ## eps is the same as chi_old except its values have already been extended to K_f
+# 					f = f[0]
+# 					olds = oldforms(f,eps,d,N)
+# 					# print "p",self.p()
+# 					# print "A",olds
+# 					# print "B",self
+# 					for g in olds:
+# 						m = self.hecke_multiplicity(g[0])
+# 						assert m >= g[1],"CM not found!!"
+# 						if m == g[1]:
+# 							bad = []
+# 							for r in range(self.num_forms()):
+# 								if self[r].hecke() == g[0]:
+# 									bad += [r]
+# 							bad.reverse()
+# 							for ind in bad:
+# 								self.remove(self[ind])
+# 						else:
+# #							print "WRONG NUMBER OF CM FORMS HERE"
+# 							bool = false
+# 		return bool
+
+	def remove_old_and_CM(self,log=None,verbose=False):
+		if self.num_forms() == 0:
+			return None
+		sturm = STURM 
+		p = self.p()
+		chi = self.chi()
+		N = chi.modulus()
+		Nc = chi.conductor()
+		Nt = N / Nc
+		worked = true
+		all_old = []
+		for d in divisors(Nt):
+			G_old = DirichletGroup(Nc * d)
+			chi_old = G_old(chi)
+			chi_old = convert_character_to_database(chi_old)
+			chi_old = chi_old.minimize_base_ring()
+			if CM.keys().count(chi_old) != 0:
+				for f in CM[chi_old]:
+					eps = f[1]  ## eps is the same as chi_old except its values have already been extended to K_f
+					f = f[0]
+					olds = oldforms(f,eps,d,N)
+					all_old = combine(all_old,olds)
+					# print "p",self.p()
+					# print "A",olds
+					# print "B",self
+			if d != Nt:
+				if len(exotic[chi_old]) != 0:
+					for f in exotic[chi_old]:
+						eps = f[1]  
+						f = f[0]
+						olds = oldforms(f,eps,d,N)
+						all_old = combine(all_old,olds)
+						# print "p",self.p()
+						# print "A",olds
+						# print "B",self
+						# print "C",all_olds
+		for g in all_old:
+			m = self.hecke_multiplicity(g[0])
+			assert m >= g[1],"CM/old not found!!"
+			if m == g[1]:
+				### multiplicity exact correct so we can throw away these CM forms safely
+				self.remove_completely(g[0])
+			else:
+				### there are potentially forms congruent to this CM form in weight p which don't come from weight 1
+				### but we now be careful and check to the sturm bound to prove this congruence
+				print "checking up to strong_sturm for CM/old"+str(g[0])
+				W = cut_out(p,chi,g[0])
+				###!! need to deal with p below in exclude -- just bailing on it for now
+				D = decompose(W,chi,strong_sturm,[p],p,log=log,verbose=verbose)
+				only_CM = true
+				for j in range(D.num_spaces()):
+					only_CM = only_CM and D.is_CM(j,strong_sturm)
+				if only_CM:
+					self.remove_completely(g[0])
+				else:
+					print "couldn't remove the CM/old form",g[0]
+					return false
+		return true
+
+def cut_out(p,chi,h,sturm=None):
+	#### wrong at p -- need x^2-apx+chi(p) or something
+	print "In cut_out with p =",p
+	d = max_degree(h,chi,exclude=[p])
+	if sturm == None:
+		sturm = STURM
+	kp = chi.base_ring().prime_above(p).residue_field()
+	R = PolynomialRing(kp,'x')
+	M = ModularSymbols(chi,p,1,kp).cuspidal_subspace()
+	N = chi.modulus()
+	if N % p != 0:
+		e = 1
+	else:
+		e = 2
+	for q in primes(sturm):
+		if q != p or N % p == 0:
+			Tq = M.hecke_operator(q)
+			M = ((R(h[q][0]).substitute(Tq))**(M.dimension())).kernel()
+			if M.dimension() <= e*d:
+				assert M.dimension() == e*d
+				break
+	return M
 
 
 
+
+
+
+def max_degree(h,chi,exclude=[]):
+	return max([h[q][0].degree() / euler_phi(chi.order()) for q in h.keys() if exclude.count(q) == 0])
 
 def square_free(f):
 	facts = f.factor()
@@ -719,3 +888,88 @@ def square_free(f):
 
 	return ans
 	
+## f is new in S_1(Nc * d, chi) where Nc is the conductor of chi
+##
+## returns dictionaries encoding the minpolys of the generalized Hecke-eigensystems mod pp
+## which occur in the span of {f(d'z) : d' | N/(Nc * d) } with multiplicities
+##
+## chi should take values in the field of FC of f
+def oldforms(f,chi,d,N,sturm=None):
+	Nc = chi.conductor()
+	L = f.base_ring()
+	R = PolynomialRing(L,'x')
+	x = R.gen()
+	Nt = N / (Nc * d)
+	if sturm == None:
+		sturm = STURM
+
+	h = {}
+	for ell in primes(STURM):
+		if N % ell != 0:
+			h[ell] = [f[ell].minpoly()]
+
+	v = [[h,1]]
+	for ell in prime_divisors(N):
+		new_v = []
+		for t in v:
+		### In this case a_ell(f) must be 0 and old copies of it still are 0
+			if ell < sturm:
+				if d % ell == 0:
+					h = deepcopy(t[0])
+					h[ell] = [x]
+					new_v += [[h,t[1] * (valuation(Nt,ell) + 1)]]
+			### In this case a_ell(f) persists as an eigenvalue of U_ell with mult 1 and 0 has rest of multiplicity		
+				elif Nc % ell == 0:
+					if valuation(Nt,ell) == 0:
+						h1 = deepcopy(t[0])
+						h1[ell] = [f[ell].minpoly()]
+						new_v += [[h1,t[1]]]
+					else:
+						h2 = deepcopy(t[0])
+						h2[ell] = [x]
+						new_v += [[h2,t[1] * (valuation(Nt,ell))]]
+				else: ## now ell must divide Nt with mult >= 2
+					# P = x**2 - f[ell] * x + chi(ell)
+					# M = P.splitting_field('a')
+					# inc = Hom(L,M)[0]
+					# P = P.change_ring(inc)
+					# rs = P.roots()
+					# p1 = rs[0][0].minpoly()
+					# p2 = rs[1][0].minpoly()
+
+					# h1 = deepcopy(t[0])
+					# h1[ell] = [p1]
+					# new_v += [[h1,t[1]]]
+
+					# h2 = deepcopy(t[0])
+					# h2[ell] = [p2]
+					# new_v += [[h2,t[1]]]
+
+					if valuation(Nt,ell) > 1:
+						h3 = deepcopy(t[0])
+						h3[ell] = [x]
+						new_v += [[h3,t[1] * (valuation(Nt,ell)-1)]]
+			else:
+				new_v += [[t[0],(valuation(Nt,ell) + 1)*t[1]]]
+		v = new_v
+	return v
+
+def combine(all_olds,olds):
+	all_forms = [f[0] for f in all_olds]
+	for r in range(len(olds)):
+		f = olds[r][0]
+		if all_forms.count(f) > 0:
+			ind = all_forms.index(f)
+			all_olds[ind][1] += olds[r][1]
+		else:
+			all_olds += [olds[r]]
+	return all_olds
+
+
+
+
+
+
+
+
+

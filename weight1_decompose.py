@@ -1,6 +1,6 @@
 class EigenDecomp(SageObject):
 
-	def __init__(self,Ms,chi,pp=None):
+	def __init__(self,Ms,chi,pp=None,p=None):
 		if (not (type(Ms) is list)) and (not (type(Ms) is sage.structure.sequence.Sequence_generic)):
 			Ms = [Ms]
 		self._spaces = Ms
@@ -8,7 +8,7 @@ class EigenDecomp(SageObject):
 		if len(Ms) != 0:
 			self._p = Ms[0].base_ring().characteristic()
 		else:
-			self._p = None
+			self._p = p
 		self._pchi = pp #chosen prime over p
 
 	def p(self):
@@ -116,29 +116,41 @@ class EigenDecomp(SageObject):
 		return occurs,j-1
 
 
-	def remove_CM(self):
-		chi = self.chi()
-		if self.num_spaces() == 0 or CM.keys().count(chi)==0:
-			return self			
-		else:
-			sturm = STURM 
-			p = self.p()
-
-			for f in CM[chi]:
-				L = f.base_ring()
-				pp = L.prime_above(p)
-				kk = pp.residue_field()
-				polys = {}
-				for q in primes(sturm):
-					if q != p:
-						polys[q] = kk(f[q]).minpoly()
-#				print polys
-#				print self.hecke_polys(0)
-## PROBLEM HERE: SEE ABOVE
-				bool,ind = self.hecke_occurs(polys)
-				if bool:
-					self.remove(self[ind])
-#					print "removed CM at",chi
+# 	def remove_CM(self):
+# 		### THIS ISN"T RIGHT!!!!  	
+# 		if self.num_spaces() == 0:
+# 			return None
+# 		sturm = STURM 
+# 		p = self.p()
+# 		chi = self.chi()
+# 		N = chi.modulus()
+# 		Nc = chi.conductor()
+# 		for d in divisors(N/Nc):
+# #			print "Trying divisor",d,Nc,N
+# 			G_old = DirichletGroup(Nc * d)
+# 			chi_old = G_old(chi)
+# 			chi_old = convert_character_to_database(chi_old)
+# 			chi_old = chi_old.minimize_base_ring()
+# 			if CM.keys().count(chi_old) != 0:
+# 				for f in CM[chi_old]:
+# 					L = f.base_ring()
+# 					pp = L.prime_above(p)
+# 					kk = pp.residue_field()
+# 					polys = {}
+# 					for q in primes(sturm):
+# 						if q != p:
+# 							if gcd(q,N/Nc) == 1:
+# 								polys[q] = kk(f[q]).minpoly()
+# 							else:
+# 								## FC of promoted form to level N is 0
+# 								polys[q] = kk(0).minpoly()
+# 	#				print polys
+# 	#				print self.hecke_polys(0)
+# 	## PROBLEM HERE: SEE ABOVE
+# 					bool,ind = self.hecke_occurs(polys)
+# 					if bool:
+# 						self.remove(self[ind])
+# 	#					print "removed CM at",chi
 
 	# def remove_non_Artin(self):
 	# 	chi = self.chi()
@@ -194,34 +206,51 @@ class EigenDecomp(SageObject):
 		fail = false
 		### Getting minpolys away from p
 		for q in h.keys():
-			if q != p and exclude.count(q) == 0:
+ 			if exclude.count(q) == 0 and ((N % p == 0 and q == p) or q != p):
 				h0[q] = FC.possible_Artin_polys(h[q],chi,q,p,upper=upper)
-				## Mild Galois conjugate check
+#				print h[q],q,h0[q]
 				if len(h0[q]) == 0:
 					fail = true
 
-		if exclude.count(p) == 0:
+		### why exclude p|N here???
+		if exclude.count(p) == 0 and N % p != 0:
 			hp = self[j].hecke_polynomial(p)
 			assert len(hp.factor()) <= 2, "have not decomposed far enough (seen at p)"
-			fp,fail = find_ap_minpoly(self[j],h=h)
+			fp,bool = find_ap_minpoly(self[j],h=h)
+			fail = fail or bool
+			### NEED TO DEAL UNDERSTAND BOOL HERE!!!!!!
 			h0[p] = FC.possible_Artin_polys(fp,chi,p,p,upper=upper)
+#			print p,h0[p]
 			if len(h0[p]) == 0:
 				fail = true
 			
 		return weight_one_form(chi,h0,space=EigenDecomp(self[j],self.chi(),self._pchi)),not fail
 
 	def upper_bound(self):
+		p = self.p()
+		N = self.chi().modulus()
+		if N % p != 0:
+			e = 2
+		else:
+			e = 1		
 		ans = 0
 		for j in range(self.num_spaces()):
-			ans += floor(self[j].dimension() / 2)
+			ans += floor(self[j].dimension() / e)
 		return ans
 
 	def lower_bound(self):
 		chi = self.chi()
-		if CM.keys().count(chi)==0:
-			return 0
-		else:
-			return len(CM[chi])
+		N = chi.modulus()
+		Nc = chi.conductor()
+		lb = 0
+		for d in divisors(N/Nc):
+			G_old = DirichletGroup(Nc * d)
+			chi_old = G_old(chi)
+			chi_old = convert_character_to_database(chi_old)
+			chi_old = chi_old.minimize_base_ring()
+			if CM.keys().count(chi_old) != 0:
+				lb += len(divisors((N/Nc)/d)) * len(CM[chi_old])
+		return lb
 
 	def unique_lift(self,j):
 		bool = true
@@ -240,91 +269,41 @@ class EigenDecomp(SageObject):
 
 		return bool 
 
-
-	def grab_eigens(self,j,Kf=None,sturm=None,verbose=false):
-		p = self.p()
-		kk = self[j].base_ring()
-
-		h = self.hecke_polys(j,exclude=[p],sturm=sturm,verbose=verbose)
-
-		if Kf == None:
-			R = PolynomialRing(kk,'x')
-			ans = 1
-			for q in h.keys():
-				ans *= R(h[q])
-
-			d = 1
-			fs = ans.factor()
-			for Q in fs:			
-				d = lcm(d,Q[0].degree())
-
-			if d>1:
-				F = kk.extension(d,'a')
-			else:
-				F = kk
-
-			phibar = Hom(kk,F)[0]  ## what am I choosing here???? CHECK THIS!
-			pf = None
-		else:
-			pf = Kf.prime_above(p)
-			kf = pf.residue_field()
-			phibar = Hom(kk,kf)[0]
-			F = kf
-
-		M = self[j]
-		d = M.dimension()
-		V = F**d 
-		W = V
-		Ws = [W]
-		r = 0
-		while W.dimension() > 2 and r < len(h.keys()):		
-			q = h.keys()[r]
-			if q != self.p():
-				if verbose > 2:
-					print "in grab-eigens with q =",q
-				T = M.hecke_operator(q)
-				A = T.matrix()
-				A = A.apply_map(phibar)
-				for WW in Ws:
-					A = A.restrict(WW)
-#				A = A.restrict(W)
-				W = A.left_eigenspaces()[0][1]
-				Ws.append(W)
-			r += 1
-
-		fail = W.dimension()<2
-		if fail:
-			print "failed in grab!"
-		## confused here by the 190 example but maybe dimension can still be 1 at this point
-
-		evs = {}
-		for q in h.keys()+[p]:
-			if verbose > 1:
-				print "In grab with q =",q
-
-			T = M.hecke_operator(q)
-			A = T.matrix()
-			A = A.apply_map(phibar)
-			for WW in Ws:
-				A = A.restrict(WW)
-			if q != self.p():
-				evs[q] = A.charpoly().roots()[0][0]
-			else:
-				f = A.charpoly()
-				ap = -f[1]
-				evs[q] = ap
-
-		return evs,pf,phibar,not fail
-
 	def wt1_space(self,sturm=None):
+		p = self.p()
+		N = self.chi().modulus()
+		if N % p != 0:
+			e = 2
+		else:
+			e = 1
 		forms = []
 		for r in range(self.num_spaces()):
 			f,bool = self.lift_to_char0_minpolys(r,sturm=sturm)
 			if bool:
-				forms += floor(self[r].dimension()/2) * [f]
+				forms += floor(self[r].dimension()/e) * [f]
 
-		return weight_one_space(forms)
+		return weight_one_space(forms,self.chi())
 	
+	### returns true/false on whether the j-th space is congruent to a cached CM
+	def is_CM(self,j,sturm):
+		print "in is_CM with j =",j,self[j]
+		chi = self.chi()
+		p = self.p()
+		if not CM.has_key(chi):
+			return false
+		else:
+			found_CM = false
+			###!! Don't want to be excluding p here
+			h = self.hecke_polys(j,exclude=[p])
+			print "h",h
+			for g in CM[chi]:
+				print "g",g
+				gbars = reductions_mod_p(g[0],p,sturm)
+				print "gbars",gbars
+				if gbars.count(h) > 0:
+					found_CM = true
+					break
+			return found_CM
 
 
 def unique(d):
@@ -399,4 +378,24 @@ def find_ap_minpoly(M,h=None,kf=None):
 	ans = ap.minpoly()
 
 	return ans,fail
+
+
+def reductions_mod_p(f,p,sturm):
+	K = f.base_ring()
+	pps = K.primes_above(p)
+	ans = []
+	for pp in pps:
+		h = {}
+		kp = pp.residue_field()
+		for q in primes(sturm):
+			###!! want to handle p here
+			if q != p:
+				h[q] = kp(f[q]).minpoly()
+		ans += [h]
+	return ans
+
+
+
+
+
 

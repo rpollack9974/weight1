@@ -34,13 +34,13 @@ def form_CM_dict(fs,chrs,prec):
 
 	r = 0
 	while r < len(fs):
-		print r
 		f,eps = make_form(fs[r])
+		print eps
 		if f.precision_absolute()<prec:
 			print "extending:",eps
 			f = extend_qexpansion(f,eps,prec)
-		eps = eps.minimize_base_ring()
-		K = eps(1).parent()
+		chi = eps.minimize_base_ring()
+		K = chi(1).parent()
 		if K == QQ:
 			K = CyclotomicField(2)
 		N = K.zeta_order()
@@ -48,9 +48,9 @@ def form_CM_dict(fs,chrs,prec):
 		H = Hom(K,L)
 		if len(H) > 0:
 			phi = Hom(K,L)[0]
-			eps = eps.change_ring(phi)
-			eps = eps.minimize_base_ring()
-			CM[eps] += [f]
+			chi = chi.change_ring(phi)
+			chi = chi.minimize_base_ring()
+			CM[chi] += [(f,eps)]
 		r += 1
 		if eps.modulus() > 600:
 			break 
