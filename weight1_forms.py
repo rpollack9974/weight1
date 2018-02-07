@@ -849,38 +849,41 @@ class weight_one_space(SageObject):
 							# print "B",self
 							# print "C",all_olds
 		success = true
+		hecke_used = []
 		for g in all_old:
 			h = {}
 			for q in g[0].keys():
 				h[q] = [minpoly_over(g[0][q],Qchi,g[1])]
-			m = self.hecke_multiplicity(h)
-			d = max_degree(h,exclude=[p])
-			print "A",m
-			print "working on",g[0],"--",h
-			print "have",m,"copies of this form and am expecting",g[2]
-			print self
-			assert m >= g[2],"CM/old not found!!"+str(g[0])+"p="+str(p)+str(self)
-			if m == g[2]:
-				### multiplicity exactly correct so we can throw away these CM forms safely
-				output(log,verbose,3,"can safely remove the CM/old form "+str(g[0]))
-				self.remove_hecke_completely(truncate(h,sturm))
-			else:
-				### there are potentially forms congruent to this CM form in weight p which don't come from weight 1
-				### but we now be careful and check to the sturm bound to prove this congruence
-				print "not enough --- checking up to strong_sturm for CM/old with p =",p
-				W = cut_out2(p,chi,phi,g[0],m,sturm=strong_sturm)
-				###!! need to deal with p below in exclude -- just bailing on it for now
-				if N % p != 0:
-					e = 2
+			if hecke_used.count(h) == 0:
+				hecke_used += [h]
+				m = self.hecke_multiplicity(h)
+				d = max_degree(h,exclude=[p])
+#				print "A",m
+#				print "working on",g[0],"--",h
+#				print "have",m,"copies of this form and am expecting",g[2]
+#				print self
+				assert m >= g[2],"CM/old not found!!"+str(g[0])+"p="+str(p)+str(self)
+				if m == g[2]:
+					### multiplicity exactly correct so we can throw away these CM forms safely
+					output(log,verbose,3,"can safely remove the CM/old form "+str(g[0]))
+					self.remove_hecke_completely(truncate(h,sturm))
 				else:
-					e = 1
-				if floor(W.dimension()/e) *d >= m:
-					print "WW",W.dimension(),d,m
-				 	output(log,verbose,3,"after careful check removing the CM/old form "+str(g[0]))
-				 	self.remove_hecke_completely(truncate(h,sturm))				 	
-				else:
-				 	print "couldn't remove the CM/old form",g[0]
-				 	success = false
+					### there are potentially forms congruent to this CM form in weight p which don't come from weight 1
+					### but we now be careful and check to the sturm bound to prove this congruence
+#					print "not enough --- checking up to strong_sturm for CM/old with p =",p
+					W = cut_out2(p,chi,phi,g[0],m,sturm=strong_sturm)
+					###!! need to deal with p below in exclude -- just bailing on it for now
+					if N % p != 0:
+						e = 2
+					else:
+						e = 1
+					if floor(W.dimension()/e) *d >= m:
+#						print "WW",W.dimension(),d,m
+					 	output(log,verbose,3,"after careful check removing the CM/old form "+str(g[0]))
+					 	self.remove_hecke_completely(truncate(h,sturm))				 	
+					else:
+					 	print "couldn't remove the CM/old form",g[0]
+					 	success = false
 		return success
 
 
@@ -918,7 +921,6 @@ def cut_out(p,chi,h,known_mult,sturm=None):
 		if q != p or N % p == 0:
 			Tq = M.hecke_operator(q)
 			M = ((R(h[q][0]).substitute(Tq))**(M.dimension())).kernel()
-			print (q,M,m,e,p,N)
 			if M.dimension() <= e*m:
 				assert M.dimension() == e*m,"hmm"
 				break
@@ -951,7 +953,6 @@ def cut_out2(p,chi,phi,f,known_mult,sturm=None):
 		if q != p:
 			Tq = M.hecke_operator(q)
 			M = ((Tq-kf(f[q]))**(2*m)).kernel()
-			print M
 
 	return M
 

@@ -1,4 +1,4 @@
-## sort order of testing hecke operators -- supercusps last
+### think more carefully about order of hecke operators
 
 ###!!! No bound checking in cut_down_to_unique
 ## min polys don't determine the form issue
@@ -9,7 +9,8 @@
 ## cut out wrong at p
 
 ### STURM is a global variable which gives the bound to which all initial Hecke decompositions are done
-STURM = 20
+STURM = 13
+strong_sturm = 60
 exotic = {}
 pp = {}
 
@@ -41,18 +42,18 @@ def collect_wt1_data(Nmin=None,Nmax=None,Ns=None,sturm=None,verbose=false,pass_b
 			chi = convert_character_to_database(chi)
 			chi = chi.minimize_base_ring()
 			if not passes_ramified_ps_test(chi):
-				print "***********************************"
-				print "***********************************"
-				print "***********************************"
-				print "***********************************"
-				print "***********************************"
-				print chi,chi.order()
-				print "fails new test"
-				print "***********************************"
-				print "***********************************"
-				print "***********************************"
-				print "***********************************"
-				print "***********************************"
+				# print "***********************************"
+				# print "***********************************"
+				# print "***********************************"
+				# print "***********************************"
+				# print "***********************************"
+				# print chi,chi.order()
+				# print "fails new test"
+				# print "***********************************"
+				# print "***********************************"
+				# print "***********************************"
+				# print "***********************************"
+				# print "***********************************"
 				bool = true
 			else:
 				A,bool = wt1(chi,log=log,verbose=verbose,pass_buck=pass_buck)
@@ -93,7 +94,8 @@ def wt1(chi,sturm=None,log=None,verbose=false,pass_buck=false):
 
 	lb = lower_bound(chi)
 	output(log,verbose,1,"There are "+str(lb)+" CM form(s)")
-	spaces = cut_down_to_unique(chi,sturm=sturm,log=log,verbose=verbose)
+	lower = lb + low_exotic
+	spaces = cut_down_to_unique(chi,lower=lower,sturm=sturm,log=log,verbose=verbose)
 	upper = upper_bound(spaces)
 
 	if upper == 0:
@@ -337,7 +339,7 @@ def has_unramified_prime(spaces):
 
 def upper_bound(spaces):
 	if len(spaces) == 0:
-		return 0
+		return 0  ##! need care here!! could be interpreted wrong
 	else:
 		ans = 0
 		used_forms = []
@@ -361,7 +363,7 @@ def lower_bound(chi):
 		chi_old = chi_old.minimize_base_ring()
 		t = 1
 		if CM.keys().count(chi_old) != 0:
-			print "CM at level",Nc*d
+#			print "CM at level",Nc*d
 #			print CM[chi_old]
 			for ell in prime_divisors(Nt):
 				if d % ell == 0:
@@ -398,7 +400,7 @@ def add_on_another_prime(chi,spaces,p,sturm=None,log=None,verbose=false):
 
 	return spaces
 
-def cut_down_to_unique(chi,sturm=None,log=None,verbose=false):
+def cut_down_to_unique(chi,lower=0,sturm=None,log=None,verbose=false):
 ### get character to agree with Buzzard-Lauder (Huh?)
 	if sturm == None:
 		sturm = STURM
@@ -416,7 +418,15 @@ def cut_down_to_unique(chi,sturm=None,log=None,verbose=false):
 	while not (unique and unramified_prime and old_and_CM_gone):
 		p = next_good_prime(p,chi)
 		spaces = add_on_another_prime(chi,spaces,p,sturm=sturm,log=log,verbose=verbose)
-		if min_num_forms(spaces) == 0:
+		if unique:
+			U = upper_bound(spaces)
+		else:
+			U = min_num_forms(spaces)
+		if lower == U:
+			spaces = []
+			output(log,verbose,2,"Done by upper/lower considerations")
+			break
+		if U == 0:  ##! this will never be satisfied now
 			output(log,verbose,1,"Weight 1 space has no exotic forms"+'\n')
 			return []
 		else:
@@ -431,7 +441,7 @@ def cut_down_to_unique(chi,sturm=None,log=None,verbose=false):
 			bool = S.remove_old_and_CM(log,verbose)
 			assert bool,"failed on the remove CM/old step"
 			if S.num_forms() == 0:
-				print "all found forms were CM or old exotic"
+#				print "all found forms were CM or old exotic"
 				output(log,verbose,1,"Weight 1 space has no exotic forms"+'\n')
 				return []
 #					print "result at ",S.p(),":",bool,empty
@@ -621,13 +631,22 @@ def maximal_eigendoubled_Artin(chi,p,sturm=None,log=None,verbose=False):
 		exclude = [p]
 	else:
 		exclude = []
-	ell = 2
-	output(log,verbose,2,"    Passing to maximal Artin eigen-doubled subspace")
-	while (floor(M.dimension()/e) > lb) and (ell<=sturm):  
-	## can we do better here in general?  Are exotic forms never over Q(chi) and thus always come in pairs?
+	primes_to_use = []
+	sc = []
+	for ell in primes(sturm):
 		if exclude.count(ell) == 0:
-			M = maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=verbose,log=log)
-		ell = next_prime(ell)
+			if not supercuspidal(chi,ell):
+				primes_to_use += [ell]
+			else:
+				sc += [ell]
+	primes_to_use += sc
+
+	output(log,verbose,2,"    Passing to maximal Artin eigen-doubled subspace")
+	r = 0 
+	while (floor(M.dimension()/e) > lb) and (r < len(primes_to_use)):
+		ell = primes_to_use[r]
+		M = maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=verbose,log=log)
+		r += 1
 	M = ordinary_subspace(M,p,log=log,verbose=verbose)
 
 	return M,floor(M.dimension()/e) <= lb
@@ -860,9 +879,13 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 	pf = Kf.prime_above(p)
 	kf = pf.residue_field()
 	H = Hom(kchi,kf)
+	found = false
+	phibars = [phibar for phibar in H if phibar(kchi(z)) == kf(phi(z))]
 	for phibar in H:
 		if phibar(kchi(z)) == kf(phi(z)):
+			found = true
 			break
+	assert found,"no phibar found"
 	need_more_primes = false
 
 	d = M.dimension()
@@ -870,7 +893,11 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 	W = V
 	Ws = [W]
 	q = 2
-	while W.dimension() > 2:		
+	if N % p != 0:
+		e = 2
+	else:
+		e = 1
+	while W.dimension() > e:		
 		if q != p:
 			output(log,verbose,2,"-in form_qexp cutting down to 2-dimensional space with q="+str(q))
 			T = M.hecke_operator(q)
@@ -882,7 +909,7 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 			Ws.append(W)
 		q = next_prime(q)
 
-	fail = (W.dimension() < 2) and (N % p != 0)
+	fail = (W.dimension() < 2) and (N % p != 0)  
 	if fail:
 		print "failed in ???!"
 		return 0,0,not fail,need_more_primes,chi
@@ -901,13 +928,15 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 			A = A.apply_map(phibar)
 			for WW in Ws:
 				A = A.restrict(WW)
-			if q != p:
+			if q != p or N % p == 0:
+				assert len(A.charpoly().roots()) == 1,"too many roots"
 				evs_modp[q] = A.charpoly().roots()[0][0]
-			else:
+			elif N % p != 0: ###!! does this assume mod p mult 1 in that the space is exactly 2 dimensional???
+				assert W.dimension() == 2, "mod p mult 1 failed?"
 				fp = A.charpoly()
-				print fp,"PROBLEM IS RIGHT EHRHEHROUEHRKEHKSHEFKSHEFKHSDFKHSFKHDKF"
 				ap = -fp[1]
 				evs_modp[q] = ap
+
 			hecke[q] = FC.possible_Artin_polys(evs_modp[q].minpoly(),chi,q,p,upper=upper)
 			if len(hecke[q]) == 0:
 				return 0,0,false,need_more_primes,chi
@@ -918,28 +947,35 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 					if g.p() != p:
 						output(log,verbose,2,"--not uniquely determined: using p="+str(g.p())+" to help")
 						Mg = g.space()[0]   ### USING ONLY THE FIRST SPACE HERE!!  IS THIS A PROBLEM???
-						Kg,phi_g = g.FC_field()
-						pg = Kg.prime_above(g.p())
+#						Kg,phi_g = g.FC_field()
+						pg = Kf.prime_above(g.p())
 						kg = pg.residue_field()
+						kchi_g = Mg.base_ring()
+						H = Hom(kchi_g,kg)
+						found = false
+						for phibar_g in H:
+							if phibar_g(kchi_g(z)) == kg(phi(z)):
+								found = true
+								break
+						assert found,"no phibar found"
 						fq = Mg.hecke_polynomial(q)
 						if g.p() != q:
 							fq = fq.factor()[0][0]
 							pi_qs = FC.possible_Artin_polys(fq,chi,q,g.p(),upper=upper)
 						else:
 							pi_alpha = fq.factor()[0][0]
-							kchi = Mg.base_ring()
-							l,phibar2 = pi_alpha.splitting_field('a',map=true)
-							alpha = hom_to_poly(pi_alpha,phibar2).roots()[0][0]
+#							l,phibar2 = pi_alpha.splitting_field('a',map=true)
+							alpha = hom_to_poly(pi_alpha,phibar_g).roots()[0][0]
 							if N % g.p() != 0:
-								ap = alpha + phibar2(kchi(chi(g.p())))/alpha
+								ap = alpha + phibar_g(kchi_g(chi(g.p())))/alpha
 							else:
 								ap = alpha
-							fp = minpoly_over(ap,kchi,phibar2)
+							fp = minpoly_over(ap,kchi_g,phibar_g)
 							pi_qs = FC.possible_Artin_polys(fp,chi,g.p(),g.p(),upper=upper)
 #						print q,pi_qs
 						if len(pi_qs) == 0:
 							fail = true
-							break  ### LOOKS LIKE I"m NOT BREAKING FAR ENOUGH
+							break  ###! LOOKS LIKE I"m NOT BREAKING FAR ENOUGH
 						else:
 							S1 = set(hecke[q])
 							S2 = set(pi_qs)
@@ -965,6 +1001,7 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 				assert len(possible_lifts)>0, "no congruent root found "+str(rs)+str(fq)
 				assert len(possible_lifts)==1, "lift not unique!"
 				evs[q] = possible_lifts[0]
+#				print q,evs_modp[q],evs[q],evs[q].minpoly()
 
 		if not need_more_primes:
 			R = PowerSeriesRing(Kf,'q')
@@ -1018,3 +1055,46 @@ def ordinary_subspace(M,p,log=None,verbose=False):
 	R = fp.parent()
 	x = R.gen()
 	return (T**(fp.valuation(x))).image()
+
+def supercuspidal(chi,ell):
+	N = chi.modulus()
+	Nc = chi.conductor()
+	return N.valuation(ell) != Nc.valuation(ell)
+
+def act_galois_char(chi,sigma):
+	chis = chi.galois_orbit()
+	vals_chi = chi.values_on_gens()
+	for psi in chis:
+		if map(sigma,vals_chi) == list(psi.values_on_gens()):
+			return psi
+	assert 1==0,"failed in act_galois"
+
+def act_galois_ps(f,sigma):
+	R = f.parent()
+	q = R.gen()
+	ans = 0
+	for n in range(f.degree()+1):
+		ans += sigma(f[n]) * q**n
+	return ans
+
+## trying to get eps take values in some normalized form with smallest coefficient field
+def normalize_character(eps):
+	eps = eps.minimize_base_ring()
+	K = eps(1).parent()
+	if K == QQ:
+		K = CyclotomicField(2)
+	N = K.zeta_order()
+	L = CyclotomicField(N)
+	Maps = Hom(K,L)
+	if len(Maps)>0:
+		phi = Hom(K,L)[0]
+		eps = eps.change_ring(phi)
+		eps = eps.minimize_base_ring()
+		return eps,True
+	else:
+		print "Problem with:"
+		print eps.modulus()
+		print eps
+		print "-------------"
+		return eps,False
+
