@@ -1,4 +1,8 @@
+## sort order of testing hecke operators -- supercusps last
 
+###!!! No bound checking in cut_down_to_unique
+## min polys don't determine the form issue
+## strong_sturm needs to be set in the CM removal issue
 ## can compute up to sturm to kick out CM forms --- maybe worth it in some examples e.g. 145
 ## no T5 in 145 example above (comes in lift_to_char0)
 ## lower bound is wrong in maximal_eigendoubled_Artin
@@ -7,6 +11,8 @@
 ### STURM is a global variable which gives the bound to which all initial Hecke decompositions are done
 STURM = 20
 exotic = {}
+pp = {}
+
 
 def collect_wt1_data(Nmin=None,Nmax=None,Ns=None,sturm=None,verbose=false,pass_buck=false):
 #	t = cputime()
@@ -34,14 +40,24 @@ def collect_wt1_data(Nmin=None,Nmax=None,Ns=None,sturm=None,verbose=false,pass_b
 		for chi in Gc:
 			chi = convert_character_to_database(chi)
 			chi = chi.minimize_base_ring()
-			# if verbose > 0:
-			# 	print "\nWorking with",chi
-			# file = open(log,'a')
-			# file.write("\nWorking with "+str(chi)+"\n")
-			# file.close()
-			A,bool = wt1(chi,log=log,verbose=verbose,pass_buck=pass_buck)
-			if len(A) > 0:
-				ans += [[chi,A]]
+			if not passes_ramified_ps_test(chi):
+				print "***********************************"
+				print "***********************************"
+				print "***********************************"
+				print "***********************************"
+				print "***********************************"
+				print chi,chi.order()
+				print "fails new test"
+				print "***********************************"
+				print "***********************************"
+				print "***********************************"
+				print "***********************************"
+				print "***********************************"
+				bool = true
+			else:
+				A,bool = wt1(chi,log=log,verbose=verbose,pass_buck=pass_buck)
+				if len(A) > 0:
+					ans += [[chi,A]]
 			worked = worked and bool
 #			output(log,verbose,0,"time: "+str(cputime(t))+"\n")
 	return ans,worked
@@ -59,7 +75,7 @@ def wt1(chi,sturm=None,log=None,verbose=false,pass_buck=false):
 	chi = convert_character_to_database(chi)
 	chi = chi.minimize_base_ring()
 
-	if not no_steinberg(chi):
+	if not no_steinberg(chi) or not passes_ramified_ps_test(chi):
 		record_to_exotic(chi,[])
 		return [],true
 
@@ -71,6 +87,7 @@ def wt1(chi,sturm=None,log=None,verbose=false,pass_buck=false):
 	low_exotic = lower_bound_from_old_exotic(chi,log,verbose)
 	output(log,verbose,2,"Dimension of old exotic space is "+str(low_exotic))
 
+	output(log,verbose,2,"Done with old subspaces.  Back to "+str(chi))
 	N = chi.modulus()
 	Nc = chi.conductor()
 
@@ -106,10 +123,10 @@ def wt1(chi,sturm=None,log=None,verbose=false,pass_buck=false):
 							lower = len(ans)
 						else:
 							output(log,verbose,1,"Failed to verify")
-							remove_form(spaces,f)
+							remove_form_completely(spaces,f)
 					else:
 						output(log,verbose,2,"eliminated after computing more e-vals")
-						remove_form(spaces,f)
+						remove_form_completely(spaces,f)
 				upper = upper_bound(spaces)
 				if lower == upper:					
 					record_to_exotic(chi,ans)
@@ -135,10 +152,10 @@ def wt1(chi,sturm=None,log=None,verbose=false,pass_buck=false):
 						lower += len(ans)
 					else:
 						output(log,verbose,1,"Failed to verify")
-						remove_form(spaces,f)
+						remove_form_completely(spaces,f)
 				else:
 					output(log,verbose,1,"Failed to verify!")
-					remove_form(spaces,f)
+					remove_form_completely(spaces,f)
 				upper = upper_bound(spaces)
 				if lower == upper:
 					record_to_exotic(chi,ans)
@@ -181,7 +198,7 @@ def galois_conjugates(fq,chi,phi):
 			t = 0
 			for n in range(fq.degree()):
 				t += sigma(fq[n]) * q**n
-			ans += [t]
+			ans += [(t,chi,phi)]
 	return ans
 
 
@@ -222,9 +239,28 @@ def output_DATA_so_far(spaces,log,verbose):
 
 def record_to_exotic(chi,ans):
 #	print "IN RECORD WITH",chi,ans
-	exotic[chi] = []
-	for f in ans:
-		exotic[chi] += [[f,chi]]
+	if len(ans) == 0:
+		Qchi = chi.base_ring()
+		if Qchi == QQ:
+			Qchi = CyclotomicField(2)
+		G = Qchi.galois_group()
+		for sigma in G:
+			exotic[act_galois_char(chi,sigma)] = []
+	else:
+		for g in ans:
+			f = g[0]
+			phi = g[2]			
+			Kf = f.base_ring()
+			if Kf == QQ:
+				Kf = CyclotomicField(2)
+			G = Kf.galois_group()
+			for sigma in G:
+				chi_sigma = act_galois_char(chi.change_ring(phi),sigma)
+				chi_sigma,bool = normalize_character(chi_sigma)
+				assert bool,"ugh"
+				if not exotic.has_key(chi_sigma):
+					exotic[chi_sigma] = []
+				exotic[chi_sigma] += [[act_galois_ps(f,sigma),chi_sigma]]
 
 def test_form(f,chi,spaces,log=None,verbose=False):
 	fs = forms_equal_to_f(spaces,f)
@@ -253,7 +289,7 @@ def forms_equal_to_f(spaces,f):
 				break
 	return fs
 
-def remove_form(spaces,f):
+def remove_form_completely(spaces,f):
 	for S in spaces:
 		while S.multiplicity(f) > 0:
 			S.remove(f)
@@ -293,7 +329,7 @@ def has_unramified_prime(spaces):
 		bool = false
 		d = 1
 		for q in f.primes():
-			d *= f[q][0].disc()
+			d *= f[q][0].discriminant().norm()
 		for q in primes_used:
 			bool = bool or d % q != 0
 		unramified_prime = unramified_prime and bool
@@ -325,7 +361,8 @@ def lower_bound(chi):
 		chi_old = chi_old.minimize_base_ring()
 		t = 1
 		if CM.keys().count(chi_old) != 0:
-#			print "CM at level",Nc*d
+			print "CM at level",Nc*d
+#			print CM[chi_old]
 			for ell in prime_divisors(Nt):
 				if d % ell == 0:
 					t *= valuation(Nt,ell)+1
@@ -501,14 +538,8 @@ def wt1_space_modp(p,chi,verbose=False,sturm=None,log=None):
 		e = 2
 	else:
 		e = 1
-
-	Kchi = chi(1).parent()
-	### THIS IS AN IMPORTANT CHOICE AND MUST BE KEPT TRACK OF
-	if Kchi != QQ:
-		pchi = Kchi.prime_above(p)
-	else:
-		pchi = ideal(p)
-	M,done = maximal_eigendoubled_Artin(chi,p,pchi,sturm=sturm,log=log,verbose=verbose)
+	
+	M,done = maximal_eigendoubled_Artin(chi,p,sturm=sturm,log=log,verbose=verbose)
 	output(log,verbose,1,"    Maximal Artin eigendoubled subspace mod "+str(p)+" has dimension "+str(M.dimension())+
 		" which gives an upper bound of "+str(floor(M.dimension()/e)))
 	if done:
@@ -521,7 +552,7 @@ def wt1_space_modp(p,chi,verbose=False,sturm=None,log=None):
 			exclude = []
 		D = decompose(M,chi,sturm,exclude,p,log,verbose)
 		output(log,verbose,1,"    After decomposition into eigenspaces the upper bound is "+str(D.upper_bound()))
-		D._pchi = pchi
+		
 		if D.upper_bound() == D.lower_bound():
 			output(log,verbose,1,"done by lower/upper bound considerations")
 			return weight_one_space([],chi)
@@ -555,23 +586,24 @@ def wt1_space_modp(p,chi,verbose=False,sturm=None,log=None):
 # 	return chi
 
 
+def maximal_eigendoubled_Artin(chi,p,sturm=None,log=None,verbose=False):
+	choose_prime_over_p(chi,p)
+	pchi = pp[(chi,p)]
 
-
-##  pp is prime over p in Q(chi)
-def maximal_eigendoubled_Artin(chi,p,pp,sturm=None,log=None,verbose=False):
 	N = chi.modulus()
+	Nc = chi.conductor()					
+
 	if N % p != 0:
 		e = 2
 	else:
 		e = 1
 	if sturm == None:
 		sturm = STURM
-	N = chi.modulus()
 
-	kk = pp.residue_field()
+	kchi = pchi.residue_field()
 	output(log,verbose,3,"     Forming modsym space")
 
-	M = ModularSymbols(chi,p,1,kk).cuspidal_subspace()
+	M = ModularSymbols(chi,p,1,kchi).cuspidal_subspace()
 		# if N % p != 0 or p == 2:
 		# 	M = ModularSymbols(chi,p,1,kk).cuspidal_subspace()
 		# else:
@@ -579,19 +611,11 @@ def maximal_eigendoubled_Artin(chi,p,pp,sturm=None,log=None,verbose=False):
 		# 	M = ModularSymbols(chi*omega**(-1),2,1,kk).cuspidal_subspace()
 	R = PolynomialRing(M.base_ring(),'x')
 
-	if chi.order() == 2 and N.is_prime():
-		K = QuadraticField(-N)
-		C = K.class_group()
-		lb = (len(C)-1)/2
+	if CM.has_key(chi):
+		lb = len(CM[chi])
 	else:
-		if CM.keys().count(chi)==0:
-			lb = 0
-		else:
-			lb = len(CM[chi])
+		lb = 0
 
-
-	N = chi.modulus()
-	Nc = chi.conductor()					
 
 	if N % p != 0:
 		exclude = [p]
@@ -601,10 +625,10 @@ def maximal_eigendoubled_Artin(chi,p,pp,sturm=None,log=None,verbose=False):
 	output(log,verbose,2,"    Passing to maximal Artin eigen-doubled subspace")
 	while (floor(M.dimension()/e) > lb) and (ell<=sturm):  
 	## can we do better here in general?  Are exotic forms never over Q(chi) and thus always come in pairs?
-		if exclude.count(ell) == 0 and N.valuation(ell) == Nc.valuation(ell):
-		## second condition is imposed because otherwise T_ell is identically 0.
+		if exclude.count(ell) == 0:
 			M = maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=verbose,log=log)
 		ell = next_prime(ell)
+	M = ordinary_subspace(M,p,log=log,verbose=verbose)
 
 	return M,floor(M.dimension()/e) <= lb
 
@@ -613,8 +637,8 @@ def maximal_eigendoubled_Artin(chi,p,pp,sturm=None,log=None,verbose=False):
 def maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=False,log=None):
 	N = chi.modulus()
 	p = M.base_ring().characteristic()
-	R = PolynomialRing(GF(p),'x')
-	x = R.gen()
+	# R = PolynomialRing(GF(p),'x')
+	# x = R.gen()
 
 	if N % p == 0:
 		output(log,verbose,2,'At a prime dividing the level!')
@@ -724,12 +748,13 @@ def decompose_helper_at_q(Ms,q,log=None,verbose=false,doubled=true):
 		return []
 
 def convert_character_to_database(chi):
-	chis = chi.galois_orbit()
-	if max([CM.keys().count(psi) for psi in chis]) > 0: # conjugate of chi is a key in CM form database
-		j = [CM.keys().count(psi) for psi in chis].index(1)
-		return chis[j]
-	else:
-		return chi.minimize_base_ring()
+	return chi
+	# chis = chi.galois_orbit()
+	# for psi in chis:
+	# 	if CM.has_key(psi):
+	# 		break
+
+	# return psi
 
 # q-expansion of E_1(chi)
 def E1chi(chi,phi,acc):
@@ -785,6 +810,22 @@ def no_steinberg(chi):
 			bool = bool and M.valuation(q) > 1
 	return bool
 
+def passes_ramified_ps_test(chi):
+	N = chi.modulus()
+	Nc = chi.conductor()
+	passes = true
+	D = chi.decomposition()
+	for chi_ell in D:
+		if chi_ell.conductor() > 1:
+			ell = prime_divisors(chi_ell.conductor())[0]
+			if valuation(Nc,ell) == valuation(N,ell):
+				if chi_ell.order() > 5:
+					passes = false
+					break
+	return passes
+
+
+
 def output(log,verbose,level,str):
 	if log != None:
 		file = open(log,'a')
@@ -808,16 +849,20 @@ def to_screen(verbose,level,str):
 def form_qexp(f,fs,upper,log=None,verbose=None):
 	p = f.p()
 	chi = f.chi()
+	Qchi = chi(1).parent()
+	z = Qchi.gen()
 	N = chi.modulus()
 	strong_sturm = ceil(Gamma0(N).index() / 3)  ### CHECK THIS!!!!
 	M = f.space()[0]
 	kchi = M.base_ring()
-	Kf = f.FC_field()
+	Kf,phi = f.FC_field()
 	R = PolynomialRing(Kf,'x')
 	pf = Kf.prime_above(p)
 	kf = pf.residue_field()
-	phibar = Hom(kchi,kf)[0]
-
+	H = Hom(kchi,kf)
+	for phibar in H:
+		if phibar(kchi(z)) == kf(phi(z)):
+			break
 	need_more_primes = false
 
 	d = M.dimension()
@@ -860,6 +905,7 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 				evs_modp[q] = A.charpoly().roots()[0][0]
 			else:
 				fp = A.charpoly()
+				print fp,"PROBLEM IS RIGHT EHRHEHROUEHRKEHKSHEFKSHEFKHSDFKHSFKHDKF"
 				ap = -fp[1]
 				evs_modp[q] = ap
 			hecke[q] = FC.possible_Artin_polys(evs_modp[q].minpoly(),chi,q,p,upper=upper)
@@ -872,7 +918,7 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 					if g.p() != p:
 						output(log,verbose,2,"--not uniquely determined: using p="+str(g.p())+" to help")
 						Mg = g.space()[0]   ### USING ONLY THE FIRST SPACE HERE!!  IS THIS A PROBLEM???
-						Kg = g.FC_field()
+						Kg,phi_g = g.FC_field()
 						pg = Kg.prime_above(g.p())
 						kg = pg.residue_field()
 						fq = Mg.hecke_polynomial(q)
@@ -880,8 +926,16 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 							fq = fq.factor()[0][0]
 							pi_qs = FC.possible_Artin_polys(fq,chi,q,g.p(),upper=upper)
 						else:
-							ans,fail = find_ap_minpoly(Mg,kf=kg)
-							pi_qs = FC.possible_Artin_polys(ans,chi,q,q)
+							pi_alpha = fq.factor()[0][0]
+							kchi = Mg.base_ring()
+							l,phibar2 = pi_alpha.splitting_field('a',map=true)
+							alpha = hom_to_poly(pi_alpha,phibar2).roots()[0][0]
+							if N % g.p() != 0:
+								ap = alpha + phibar2(kchi(chi(g.p())))/alpha
+							else:
+								ap = alpha
+							fp = minpoly_over(ap,kchi,phibar2)
+							pi_qs = FC.possible_Artin_polys(fp,chi,g.p(),g.p(),upper=upper)
 #						print q,pi_qs
 						if len(pi_qs) == 0:
 							fail = true
@@ -904,7 +958,7 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 				break
 			else:
 				fq = hecke[q][0]
-				rs = R(fq).roots()
+				rs = hom_to_poly(fq,phi).roots()
 				done = false
 				j = 0
 				possible_lifts = [r[0] for r in rs if evs_modp[q] == kf(r[0])]
@@ -913,20 +967,6 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 				evs[q] = possible_lifts[0]
 
 		if not need_more_primes:
-			### Looking for phi: K_chi --> K_f consistent with other choices
-			Kchi = chi(1).parent()
-			if Kchi == QQ:
-				Kchi = CyclotomicField(2)
-			pchi = f.space()._pchi
-			found = false
-			r = 0
-			H = Hom(Kchi,Kf)
-			while not found:
-				phi = H[r]
-				found = phibar(kchi(Kchi.gen())) == kf(phi(Kchi.gen()))
-				r += 1
-#			chi = chi.change_ring(phi)  ### do i want to do this?
-
 			R = PowerSeriesRing(Kf,'q')
 			q = R.gens()[0]
 			ans = 0
@@ -963,3 +1003,18 @@ def an(evs,n,chi,phi):
 
 
 
+def choose_prime_over_p(chi,p):
+	if not pp.has_key((chi,p)):
+		Qchi = chi(1).parent()
+		if Qchi != QQ:
+			pp[(chi,p)] = Qchi.prime_above(p)
+		else:
+			pp[(chi,p)] = ideal(p)
+
+def ordinary_subspace(M,p,log=None,verbose=False):
+	output(log,verbose,3,"Passing to ordinary subspace")
+	T = M.hecke_operator(p)
+	fp = T.charpoly()
+	R = fp.parent()
+	x = R.gen()
+	return (T**(fp.valuation(x))).image()

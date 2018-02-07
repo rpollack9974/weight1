@@ -357,7 +357,8 @@ class weight_one_form(SageObject):
 		poly = 1
 		for q in self.primes():
 			poly *= self[q][0]
-		return poly.splitting_field('a')
+		K,phi = poly.splitting_field('a',map=true)
+		return K,phi
 
 	### returns the discriminant of the product of all min polys
 	def disc(self):
@@ -365,7 +366,7 @@ class weight_one_form(SageObject):
 		for q in self.primes():
 			poly *= self[q][0]
 		poly = square_free(poly)
-		return poly.disc()
+		return poly.discriminant().norm()
 
 	def grab_eigens(self,Kf=None,sturm=None,verbose=false):		
 		t,pf,phibar,bool = self.space().grab_eigens(0,Kf=Kf,sturm=sturm,verbose=verbose)
@@ -547,34 +548,49 @@ class weight_one_space(SageObject):
 
 	def remove(self,f):
 		"""
-		Removes the form f from the space
+		Removes one copy of the form f from the space
 
 		INPUT:
-		- f -- weight_one_form
+		- f --- weight one form
 
 		OUTPUT:
         
 		None
 		"""
-		assert self.forms().count(f)>0,"Not in space"
+		assert self.multiplicity(f) > 0,"Not in space"
 
 		self._forms.remove(f)
 
-	def remove_completely(self,f):
+	def remove_hecke(self,h):
 		"""
-		Removes all copies of the form f from the space
+		Removes a form with the hecke-eigensystem h
 
 		INPUT:
-		- f -- weight_one_form
+		- h --- hecke eigensystem (dictionary)
 
 		OUTPUT:
         
 		None
 		"""
-		assert self.forms().count(f)>0,"Not in space"
+		assert self.hecke_multiplicity(h) > 0,"Not in space"
 
-		while self.multiplicity(f) > 0:
-			self.remove(f)
+		self._forms.remove(weight_one_form(0,hecke=h))
+
+	def remove_hecke_completely(self,h):
+		"""
+		Removes all forms with hecke system h
+
+		INPUT:
+		- h --- hecke eigensystem (dictionary)
+
+		OUTPUT:
+        
+		None
+		"""
+		assert self.hecke_multiplicity(h) > 0,"Not in space"
+
+		while self.hecke_multiplicity(h) > 0:
+			self.remove_hecke(h)
 
 	def level(self):
 		"""
@@ -644,7 +660,7 @@ class weight_one_space(SageObject):
 		"""
 		mult = 0
 		for i in range(self.num_forms()):
-			if self[i].hecke() == h:
+			if equal_dicts(self[i].hecke(),h):
 				mult = mult + 1
 		return mult
 
@@ -796,89 +812,155 @@ class weight_one_space(SageObject):
 		sturm = STURM 
 		p = self.p()
 		chi = self.chi()
+		Qchi = chi.base_ring()
+		if Qchi == QQ:
+			Qchi = CyclotomicField(2)
 		N = chi.modulus()
 		Nc = chi.conductor()
 		Nt = N / Nc
 		worked = true
 		all_old = []
 		for d in divisors(Nt):
-			G_old = DirichletGroup(Nc * d)
-			chi_old = G_old(chi)
-			chi_old = convert_character_to_database(chi_old)
-			chi_old = chi_old.minimize_base_ring()
-			if CM.keys().count(chi_old) != 0:
-				for f in CM[chi_old]:
-					eps = f[1]  ## eps is the same as chi_old except its values have already been extended to K_f
-					f = f[0]
-					olds = oldforms(f,eps,d,N)
-					all_old = combine(all_old,olds)
-					# print "p",self.p()
-					# print "A",olds
-					# print "B",self
-			if d != Nt:
-				if len(exotic[chi_old]) != 0:
-					for f in exotic[chi_old]:
-						eps = f[1]  
-						f = f[0]
-						olds = oldforms(f,eps,d,N)
+			if d % p != 0:
+				G_old = DirichletGroup(Nc * d)
+				chi_old = G_old(chi)
+				chi_old = convert_character_to_database(chi_old)
+				chi_old = chi_old.minimize_base_ring()
+				if CM.has_key(chi_old) != 0:
+					for g in CM[chi_old]:
+						f = g[0]
+						eps = g[1]  
+						phi = g[2]
+						olds = oldforms(f,eps,d,N,phi,sturm=strong_sturm)
 						all_old = combine(all_old,olds)
 						# print "p",self.p()
 						# print "A",olds
 						# print "B",self
-						# print "C",all_olds
+				if d != Nt:
+					if len(exotic[chi_old]) != 0:
+						for g in exotic[chi_old]:
+							f = g[0]
+							eps = g[1]  
+							phi = g[2]
+							olds = oldforms(f,eps,d,N,phi,sturm=strong_sturm)
+							all_old = combine(all_old,olds)
+							# print "p",self.p()
+							# print "A",olds
+							# print "B",self
+							# print "C",all_olds
+		success = true
 		for g in all_old:
-			m = self.hecke_multiplicity(g[0])
-			assert m >= g[1],"CM/old not found!!"
-			if m == g[1]:
-				### multiplicity exact correct so we can throw away these CM forms safely
-				self.remove_completely(g[0])
+			h = {}
+			for q in g[0].keys():
+				h[q] = [minpoly_over(g[0][q],Qchi,g[1])]
+			m = self.hecke_multiplicity(h)
+			d = max_degree(h,exclude=[p])
+			print "A",m
+			print "working on",g[0],"--",h
+			print "have",m,"copies of this form and am expecting",g[2]
+			print self
+			assert m >= g[2],"CM/old not found!!"+str(g[0])+"p="+str(p)+str(self)
+			if m == g[2]:
+				### multiplicity exactly correct so we can throw away these CM forms safely
+				output(log,verbose,3,"can safely remove the CM/old form "+str(g[0]))
+				self.remove_hecke_completely(truncate(h,sturm))
 			else:
 				### there are potentially forms congruent to this CM form in weight p which don't come from weight 1
 				### but we now be careful and check to the sturm bound to prove this congruence
-				print "checking up to strong_sturm for CM/old"+str(g[0])
-				W = cut_out(p,chi,g[0])
+				print "not enough --- checking up to strong_sturm for CM/old with p =",p
+				W = cut_out2(p,chi,phi,g[0],m,sturm=strong_sturm)
 				###!! need to deal with p below in exclude -- just bailing on it for now
-				D = decompose(W,chi,strong_sturm,[p],p,log=log,verbose=verbose)
-				only_CM = true
-				for j in range(D.num_spaces()):
-					only_CM = only_CM and D.is_CM(j,strong_sturm)
-				if only_CM:
-					self.remove_completely(g[0])
+				if N % p != 0:
+					e = 2
 				else:
-					print "couldn't remove the CM/old form",g[0]
-					return false
-		return true
+					e = 1
+				if floor(W.dimension()/e) *d >= m:
+					print "WW",W.dimension(),d,m
+				 	output(log,verbose,3,"after careful check removing the CM/old form "+str(g[0]))
+				 	self.remove_hecke_completely(truncate(h,sturm))				 	
+				else:
+				 	print "couldn't remove the CM/old form",g[0]
+				 	success = false
+		return success
 
-def cut_out(p,chi,h,sturm=None):
+
+				# D = decompose(W,chi,strong_sturm,[p],p,log=log,verbose=verbose)
+				# only_CM = true
+				# for j in range(D.num_spaces()):
+				# 	print "Checking",D.hecke_polys(j)
+				# 	print D.is_CM(j,g[0],phi,strong_sturm)
+				# 	only_CM = only_CM and D.is_CM(j,g,phi,strong_sturm)
+				# if only_CM:
+				# 	output(log,verbose,3,"after careful check removing the CM/old form "+str(g[0]))
+				# 	self.remove_hecke_completely(g[0])
+				# else:
+				# 	print "couldn't remove the CM/old form",g[0]
+				# 	return false
+
+def cut_out(p,chi,h,known_mult,sturm=None):
 	#### wrong at p -- need x^2-apx+chi(p) or something
-	print "In cut_out with p =",p
-	d = max_degree(h,chi,exclude=[p])
+#	d = max_degree(h,chi,exclude=[p])
+	m = known_mult
 	if sturm == None:
 		sturm = STURM
-	kp = chi.base_ring().prime_above(p).residue_field()
+	Qchi = chi.base_ring()
+	if Qchi == QQ:
+		Qchi = CyclotomicField(2)
+	kp = Qchi.prime_above(p).residue_field()
 	R = PolynomialRing(kp,'x')
 	M = ModularSymbols(chi,p,1,kp).cuspidal_subspace()
 	N = chi.modulus()
 	if N % p != 0:
-		e = 1
-	else:
 		e = 2
+	else:
+		e = 1
 	for q in primes(sturm):
 		if q != p or N % p == 0:
 			Tq = M.hecke_operator(q)
 			M = ((R(h[q][0]).substitute(Tq))**(M.dimension())).kernel()
-			if M.dimension() <= e*d:
-				assert M.dimension() == e*d
+			print (q,M,m,e,p,N)
+			if M.dimension() <= e*m:
+				assert M.dimension() == e*m,"hmm"
 				break
+	return M
+
+def cut_out2(p,chi,phi,f,known_mult,sturm=None):
+	#### wrong at p -- need x^2-apx+chi(p) or something
+	m = known_mult
+	if sturm == None:
+		sturm = STURM
+	Qchi = chi.base_ring()
+	if Qchi == QQ:
+		Qchi = CyclotomicField(2)
+	z = Qchi.gen()
+	if not pp.has_key((chi,p)):
+		pchi = Qchi.prime_above(p)
+	else:
+		pchi = pp[(chi,p)]
+	kchi = pchi.residue_field()
+	Kf = f[f.keys()[0]].parent()
+	pf = Kf.prime_above(p)
+	kf = pf.residue_field()
+	H = Hom(kchi,kf)
+	for phibar in H:
+		if phibar(kchi(z)) == kf(phi(z)):
+			break
+	chip = chi.change_ring(phibar)
+	M = ModularSymbols(chip,p,1,kf).cuspidal_subspace()
+	for q in primes(sturm):
+		if q != p:
+			Tq = M.hecke_operator(q)
+			M = ((Tq-kf(f[q]))**(2*m)).kernel()
+			print M
+
 	return M
 
 
 
 
 
-
-def max_degree(h,chi,exclude=[]):
-	return max([h[q][0].degree() / euler_phi(chi.order()) for q in h.keys() if exclude.count(q) == 0])
+def max_degree(h,exclude=[]):
+	return max([h[q][0].degree() for q in h.keys() if exclude.count(q) == 0])
 
 def square_free(f):
 	facts = f.factor()
@@ -894,21 +976,24 @@ def square_free(f):
 ## which occur in the span of {f(d'z) : d' | N/(Nc * d) } with multiplicities
 ##
 ## chi should take values in the field of FC of f
-def oldforms(f,chi,d,N,sturm=None):
+def oldforms(f,chi,d,N,phi,sturm=None):
 	Nc = chi.conductor()
 	L = f.base_ring()
-	R = PolynomialRing(L,'x')
+	Qchi = chi(1).parent()
+	if Qchi == QQ:
+		Qchi = CyclotomicField(2)
+	R = PolynomialRing(Qchi,'x')
 	x = R.gen()
 	Nt = N / (Nc * d)
 	if sturm == None:
 		sturm = STURM
 
 	h = {}
-	for ell in primes(STURM):
+	for ell in primes(sturm):
 		if N % ell != 0:
-			h[ell] = [f[ell].minpoly()]
+			h[ell] = f[ell]
 
-	v = [[h,1]]
+	v = [[h,phi,1]]
 	for ell in prime_divisors(N):
 		new_v = []
 		for t in v:
@@ -916,18 +1001,18 @@ def oldforms(f,chi,d,N,sturm=None):
 			if ell < sturm:
 				if d % ell == 0:
 					h = deepcopy(t[0])
-					h[ell] = [x]
-					new_v += [[h,t[1] * (valuation(Nt,ell) + 1)]]
+					h[ell] = L(0)
+					new_v += [[h,phi,t[2] * (valuation(Nt,ell) + 1)]]
 			### In this case a_ell(f) persists as an eigenvalue of U_ell with mult 1 and 0 has rest of multiplicity		
 				elif Nc % ell == 0:
 					if valuation(Nt,ell) == 0:
 						h1 = deepcopy(t[0])
-						h1[ell] = [f[ell].minpoly()]
-						new_v += [[h1,t[1]]]
+						h1[ell] = f[ell]
+						new_v += [[h1,phi,t[2]]]
 					else:
 						h2 = deepcopy(t[0])
-						h2[ell] = [x]
-						new_v += [[h2,t[1] * (valuation(Nt,ell))]]
+						h2[ell] = L(0)
+						new_v += [[h2,phi,t[2] * (valuation(Nt,ell))]]
 				else: ## now ell must divide Nt with mult >= 2
 					# P = x**2 - f[ell] * x + chi(ell)
 					# M = P.splitting_field('a')
@@ -947,10 +1032,10 @@ def oldforms(f,chi,d,N,sturm=None):
 
 					if valuation(Nt,ell) > 1:
 						h3 = deepcopy(t[0])
-						h3[ell] = [x]
-						new_v += [[h3,t[1] * (valuation(Nt,ell)-1)]]
+						h3[ell] = L(0)
+						new_v += [[h3,phi,t[2] * (valuation(Nt,ell)-1)]]
 			else:
-				new_v += [[t[0],(valuation(Nt,ell) + 1)*t[1]]]
+				new_v += [[t[0],phi,(valuation(Nt,ell) + 1)*t[2]]]
 		v = new_v
 	return v
 
@@ -965,11 +1050,17 @@ def combine(all_olds,olds):
 			all_olds += [olds[r]]
 	return all_olds
 
+def equal_dicts(a,b):
+	A = set(a.keys())
+	B = set(b.keys())
+	for q in A.intersection(B):
+		if a[q] != b[q]:
+			return false
+	return true
 
-
-
-
-
-
-
-
+def truncate(d,sturm):
+	h = {}
+	for q in d.keys():
+		if q < sturm:
+			h[q] = d[q]
+	return h

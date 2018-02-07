@@ -23,8 +23,12 @@ class weight_one_FC(SageObject):
 	def keys(self):
 		return self._minpolys.keys()
 
+	def has_key(self,key):
+		return self._minpolys.has_key(key)
+
+	## keys (order of chi,chi(ell), chi^(ell)(ell))
 	def __getitem__(self,key):
-		if self.keys().count(key) == 1:
+		if self.has_key(key):
 			ind = self.keys().index(key)
 			key_true = self.keys()[ind]   ## keys may be equal as algebraic numbers but not equal as strings
 			return self._minpolys[key_true]
@@ -33,124 +37,76 @@ class weight_one_FC(SageObject):
 			return self._minpolys[key]
 
 	def compute_minpolys(self,key):		
-		try:
-			key.abs() ### HACKING HERE -- functions takes either numbers or characters; this distinguishes
-			val = key
+		ord = key[0]
+		val = key[1]
+		Qchi = CyclotomicField(ord)
+		z = Qchi.gen()
+		R = PolynomialRing(Qchi,'x')
+		x = R.gen()
 
-			N = val.multiplicative_order()
-
+		if len(key) == 2:
+			### at primes not dividing the level
 			ans = []
-			CC = ComplexField(1000)
-			R = PolynomialRing(QQ,'x')
-			x = R.gen()
 
 			## c = 0
 			ans += [x]
 
-			Phi_N = R(cyclotomic_polynomial(N))
-			Phi_2N = R(cyclotomic_polynomial(2*N))
-			C = 2**euler_phi(N)
-			mPhi_N = C * Phi_N.substitute(x/2)
-			if gcd(2,N) == 1:
-				mPhi_2N = C * Phi_2N.substitute(x/2)
-			else:
-				mPhi_2N = C**2 * Phi_2N.substitute(x/2)
-
-			## c = 1
-			ans += [Phi_2N]
-			if gcd(N,2) == 1:
-				ans += [Phi_N]
-
-			## c = 4
-			ans += [mPhi_2N]
-			if gcd(N,2) == 1:
-				ans += [mPhi_N]
-
-			## c = 2
-			f = mPhi_N.substitute(x**2) 
-			alpha = sqrt(CC(2 * exp(2*pi*I/N)))
-			ans += [irred_with_root(f,alpha)]
-			ans += [irred_with_root(f,-alpha)]
+			## c = 1,2,4
+			for c in [1,2,4]:
+				f = x**2 - c * val
+				facts = f.factor()
+				for d in facts:
+					ans += [d[0]]
 
 			## c = (3 \pm sqrt{5})/2
-			K = QuadraticField(5,'r5')
-			r5 = K.gen()
-			c = (3 + r5) / 2
-			c_c = (3 - r5) / 2
-			RK = PolynomialRing(K,'x')
-			x = RK.gen()
-			f = (RK(Phi_N).substitute(x/c) * c**euler_phi(N)).substitute(x**2)
-			f_c = (RK(Phi_N).substitute(x/c_c) * c_c**euler_phi(N)).substitute(x**2)
-			alpha = sqrt(CC(c)* CC(exp(2*pi*I/N)))
-			alpha_c = sqrt(CC(c_c)* CC(exp(2*pi*I/N)))
-			g = irred_with_root(R(f*f_c),alpha)
-			g_c = irred_with_root(R(f*f_c),alpha_c)
-			h = irred_with_root(R(f*f_c),-alpha)
-			h_c = irred_with_root(R(f*f_c),-alpha_c)
-			ans += [g,g_c,h,h_c]
-
-			# if gcd(N,5) != 1:
-			# 	c = (3 - r5) / 2
-			# 	f = (RK(Phi_N).substitute(x/c) * c**euler_phi(N)).substitute(x^2)
-			# 	alpha = sqrt(CC(c)* CC(exp(2*pi*I/N)))
-			# 	ans += [irred_with_root(f,alpha)]
-			# 	ans += [irred_with_root(f,-alpha)]
-		except AttributeError:
-			chi = key
+			## this poly has roots sqrt((3 \pm \sqrt{5})/2) * chi(ell))
+			f = x**4 - 3 * val * x**2 + val**2
+			facts = f.factor()
+			for d in facts:
+				ans += [d[0]]
+		else:
+			### at primes dividing the level (Formula is a_ell^{2d} = chi^{ell}(ell)^{2d})
+			non_ell_val = key[2]
 			ans = []
-			ords = []
-			fs = chi.order().divisors()
-			for r in fs:
-				for d in [1,2,3,4,5]:
-					ords += [d*r/gcd(d,r),2*d*r/gcd(d,r)]
-			ords = list(set(ords))
-			ords.sort()
-			for d in ords:
-				pid = cyclotomic_polynomial(d)
-				ans.append(pid)
-
+			for d in [1,2,3,4,5]:
+				f = x**(2*d) - non_ell_val**(2*d)
+				facts = f.factor()
+				for d in facts:
+					ans += [d[0]]
 
 		return list(set(ans))
-
-
-	def possible_minpolys(self):
-		chi = self.chi
-		N = chi.modulus()
-		evs = self.evs
-
-		ans = {}
-		vals = [chi(a) for a in range(1,N)]
-		vals = list(set(vals))
-
-		for a in vals:
-			ans[a] = list(set([z.minpoly() for z in evs[a]]))
-
-		return ans
 
 	## returns all possible min polys at ell which mod p have g as a factor
 	## care needs to be taken if ell divides the level
 	##
 	## galois bound given by degree Artin P must satisfy degree(P) <= [Q(a_ell):Q] / gcd([Q(a_ell):Q],[Q(chi):Q])
 	def possible_Artin_polys(self,g,chi,ell,p,upper=None):
+		N = chi.modulus()
+		Nc = chi.conductor()
+		Nt = N / Nc
+
+		choose_prime_over_p(chi,p)
+		pchi = pp[(chi,p)]
+		kchi = pchi.residue_field()
+		Qchi = chi(1).parent()
+
+		R = PolynomialRing(Qchi,'x')
+		x = R.gen()
+		Rp = PolynomialRing(kchi,'x')
+		xp = Rp.gen()
+
 		if upper == None:
 			upper = Infinity
 
-		N = chi.modulus()
 		### only doubled away from p when p \nmid N
 		if ell == p and N % p !=0:
 			upper *= 2
 
-		Nc = chi.conductor()
-		Nt = N / Nc
-		Rp = PolynomialRing(GF(p),'x')
-		xp = Rp.gen()
-		R = PolynomialRing(QQ,'x')
-		x = R.gen()
-
 		if chi.modulus() % ell != 0:
-			polys = self[chi(ell)]
+			polys = self[(chi.order(),chi(ell))]
 		elif Nt % ell != 0:
-			polys = self[chi]
+			chi_non_ell = non_ell_part(chi,ell)
+			polys = self[(chi.order(),chi(ell),chi_non_ell(ell))]
 		elif g == xp:
 			return [x]
 		else:
@@ -158,34 +114,36 @@ class weight_one_FC(SageObject):
 
 		### picking polys which (a) mod p are divisible by g
 		###						(b) whose degree is not so large that there will be more galois conjugates than upper
-		###
-		### could do better by actually factoring over Q(chi).  Is it worth it?
-		d_chi = euler_phi(chi.order())		
 		ans = []
 		for P in polys:
+			# print Rp(P)
+			# print g
+			# print Rp(P) % g
+			# print "-----"
 			if Rp(P) % g == 0:
 				d_ell = P.degree()
-				gc = gcd(d_chi,d_ell)
-				### This inquality is in wt1_facts.pdf
-				if d_ell / gc <= upper:
+				if d_ell <= upper:
 					ans += [P]
 		return ans
 
 
-def even(f):
-	v = list(f)
-	v = [v[a] for a in range(len(v)) if a%2==1]
-	return len(v) == v.count(0)
+def ell_part(chi,ell):
+	if chi.conductor().valuation(ell) > 0:
+		D = chi.decomposition()
+		return [chi for chi in D if chi.conductor().valuation(ell) > 0][0]
+	else:
+		return DirichletGroup(1)[0]
 
+def non_ell_part(chi,ell):
+	N = chi.modulus()
+	N_ell = ell**N.valuation(ell)
+	Nt = N / N_ell
+	D = chi.decomposition()
+	G = DirichletGroup(Nt,chi(1).parent())
+	chis = [G(chi) for chi in D if chi.conductor().valuation(ell) == 0]
+	if len(chis) == 0:
+		return DirichletGroup(1)[0]
+	else:
+		return prod(chis)
 
-def irred_with_root(f,alpha):
-	facts = f.factor()
-	v = [pol[0].substitute(alpha).abs() for pol in facts]
-	m = min(v)
-	assert m < 10**(-10), "no root here"
-	ind = v.index(m)
-
-	return facts[ind][0]
-
-
-
+	

@@ -9,7 +9,6 @@ class EigenDecomp(SageObject):
 			self._p = Ms[0].base_ring().characteristic()
 		else:
 			self._p = p
-		self._pchi = pp #chosen prime over p
 
 	def p(self):
 		return self._p
@@ -115,116 +114,45 @@ class EigenDecomp(SageObject):
 			j += 1
 		return occurs,j-1
 
-
-# 	def remove_CM(self):
-# 		### THIS ISN"T RIGHT!!!!  	
-# 		if self.num_spaces() == 0:
-# 			return None
-# 		sturm = STURM 
-# 		p = self.p()
-# 		chi = self.chi()
-# 		N = chi.modulus()
-# 		Nc = chi.conductor()
-# 		for d in divisors(N/Nc):
-# #			print "Trying divisor",d,Nc,N
-# 			G_old = DirichletGroup(Nc * d)
-# 			chi_old = G_old(chi)
-# 			chi_old = convert_character_to_database(chi_old)
-# 			chi_old = chi_old.minimize_base_ring()
-# 			if CM.keys().count(chi_old) != 0:
-# 				for f in CM[chi_old]:
-# 					L = f.base_ring()
-# 					pp = L.prime_above(p)
-# 					kk = pp.residue_field()
-# 					polys = {}
-# 					for q in primes(sturm):
-# 						if q != p:
-# 							if gcd(q,N/Nc) == 1:
-# 								polys[q] = kk(f[q]).minpoly()
-# 							else:
-# 								## FC of promoted form to level N is 0
-# 								polys[q] = kk(0).minpoly()
-# 	#				print polys
-# 	#				print self.hecke_polys(0)
-# 	## PROBLEM HERE: SEE ABOVE
-# 					bool,ind = self.hecke_occurs(polys)
-# 					if bool:
-# 						self.remove(self[ind])
-# 	#					print "removed CM at",chi
-
-	# def remove_non_Artin(self):
-	# 	chi = self.chi()
-	# 	sturm = STURM
-	# 	for r in range(self.num_spaces()):
-	# 		h = self.hecke_polys()
-	# 		R = h[2].parent()
-	# 		x = R.gen()
-	# 		remove = false
-	# 		q = 2
-	# 		while not remove and q < sturm:
-	# 			if chi.modulus() % q != 0:
-	# 				v = FC.possible_Artin_polys(h[q],chi(q),p)
-	# 			elif N.valuation(q) == chi.conductor().valuation(q):
-	# 				v = FC.possible_Artin_polys(g,chi,p)
-	# 			elif h[q] == x:
-	# 				v = [x]
-	# 			else:
-	# 				v = []
-	# 			v = [P for P in v if P.degree() <= M.dimension()]  ## weak galois conjugate check
-	# 			remove = len(v) == 0
-	# 			q = next_prime(q)
-	# 		if remove:
-	# 			self.remove(self[q])
-
-
-	# def remove_eisen(self,chi):
-	# 	if self.num_spaces() == 0:
-	# 		return self
-	# 	else:
-	# 		sturm = STURM # self[0].sturm_bound()
-	# 		N = chi.modulus()
-	# 		p = self.p
-	# 		assert chi.order() == 2
-
-	# 		dred = {}
-	# 		for q in primes(sturm):
-	# 			if q != p:
-	# 				dred[q] = GF(p)(chi(q)+1).minpoly()
-	# 		bool,j = self.hecke_occurs(dred)
-	# 		if bool:
-	# 			self.remove(j)
-
 	def lift_to_char0_minpolys(self,j,exclude=[],sturm=None):
 		chi = self.chi()
 		upper = self.upper_bound()
 		p = self.p()
 		N = chi.modulus()
 		h = self.hecke_polys(j,exclude=[p],sturm=sturm)
-		R = PolynomialRing(QQ,'x')
-		x = R.gen()
+		### need to do this separately becaues hecke_polys wants to only return irred polys
+		if exclude.count(p) == 0:
+			h[p] = self[j].hecke_polynomial(p)
+
 		h0 = {}
 		fail = false
 		### Getting minpolys away from p
 		for q in h.keys():
  			if exclude.count(q) == 0 and ((N % p == 0 and q == p) or q != p):
 				h0[q] = FC.possible_Artin_polys(h[q],chi,q,p,upper=upper)
-#				print h[q],q,h0[q]
+#				print q,h0[q]
 				if len(h0[q]) == 0:
 					fail = true
 
-		### why exclude p|N here???
-		if exclude.count(p) == 0 and N % p != 0:
-			hp = self[j].hecke_polynomial(p)
-			assert len(hp.factor()) <= 2, "have not decomposed far enough (seen at p)"
-			fp,bool = find_ap_minpoly(self[j],h=h)
-			fail = fail or bool
-			### NEED TO DEAL UNDERSTAND BOOL HERE!!!!!!
+		###!! why exclude p|N here???
+		if exclude.count(p) == 0:
+			assert N % p == 0 or len(h[p].factor()) <= 2, "have not decomposed far enough (seen at p)"
+			assert N % p != 0 or len(h[p].factor()) <= 1, "have not decomposed far enough (seen at p)"
+			pi_alpha = h[p].factor()[0][0]
+			kchi = self[j].base_ring()
+			l,phibar = pi_alpha.splitting_field('a',map=true)
+			alpha = hom_to_poly(pi_alpha,phibar).roots()[0][0]
+			if N % p != 0:
+				ap = alpha + phibar(kchi(chi(p)))/alpha
+			else:
+				ap = alpha
+			fp = minpoly_over(ap,kchi,phibar)
 			h0[p] = FC.possible_Artin_polys(fp,chi,p,p,upper=upper)
 #			print p,h0[p]
 			if len(h0[p]) == 0:
 				fail = true
 			
-		return weight_one_form(chi,h0,space=EigenDecomp(self[j],self.chi(),self._pchi)),not fail
+		return weight_one_form(chi,h0,space=EigenDecomp(self[j],self.chi())),not fail
 
 	def upper_bound(self):
 		p = self.p()
@@ -284,27 +212,6 @@ class EigenDecomp(SageObject):
 
 		return weight_one_space(forms,self.chi())
 	
-	### returns true/false on whether the j-th space is congruent to a cached CM
-	def is_CM(self,j,sturm):
-		print "in is_CM with j =",j,self[j]
-		chi = self.chi()
-		p = self.p()
-		if not CM.has_key(chi):
-			return false
-		else:
-			found_CM = false
-			###!! Don't want to be excluding p here
-			h = self.hecke_polys(j,exclude=[p])
-			print "h",h
-			for g in CM[chi]:
-				print "g",g
-				gbars = reductions_mod_p(g[0],p,sturm)
-				print "gbars",gbars
-				if gbars.count(h) > 0:
-					found_CM = true
-					break
-			return found_CM
-
 
 def unique(d):
 	bool = true
@@ -380,22 +287,69 @@ def find_ap_minpoly(M,h=None,kf=None):
 	return ans,fail
 
 
-def reductions_mod_p(f,p,sturm):
+def reductions_mod_p(f,p,chi,phi,sturm):
 	K = f.base_ring()
-	pps = K.primes_above(p)
+	Qchi = chi.base_ring()
+	if Qchi == QQ:
+		Qchi = CyclotomicField(2)
+	z = Qchi.gen()
+	if pp.has_key((chi,p)):
+		pchi = pp[(chi,p)]
+	else:
+		pchi = Qchi.prime_above(p)
+		pp[(chi,p)] = pchi
+	kchi = pchi.residue_field()
+	if K.degree() != 1:
+		pps = K.primes_above(pchi) ##! is this right?
+	else:
+		pps = [ideal(p)]
 	ans = []
-	for pp in pps:
+	for pf in pps:
 		h = {}
-		kp = pp.residue_field()
+		kf = pf.residue_field()
+		### make subroutine here
+		H = Hom(kchi,kf)
+		for phibar in H:
+			if phibar(kchi(z)) == kf(phi(z)):
+				break
 		for q in primes(sturm):
 			###!! want to handle p here
 			if q != p:
-				h[q] = kp(f[q]).minpoly()
+				h[q] = minpoly_over(kf(f[q]),kchi,phibar)
 		ans += [h]
 	return ans
 
+## finds min poly of alpha over K where phi : K --> L; L a field containing alpha
+def minpoly_over(alpha,K,phi):
+	L = alpha.parent()
+	P = alpha.minpoly()
+	R = PolynomialRing(K,'x')
+	facts = R(P).factor()
+	for Q in facts:
+		if hom_to_poly(Q[0],phi).substitute(alpha) == 0:
+			return Q[0]
+
+def hom_to_poly(P,phi):
+	L = phi(1).parent()
+	R = PolynomialRing(L,'x')
+	x = R.gen()
+	ans = 0
+	for j in range(P.degree()+1):
+		ans += phi(P[j]) * x**j
+	return ans
 
 
+def galois_compare(chi1,chi2):
+	K = chi1.base_ring()
+	G = K.galois_group()
+	chi1_vals = chi1.values_on_gens()
+	chi2_vals = chi2.values_on_gens()
+	worked = false
+	for sigma in G:
+		if map(sigma,chi1_vals) == list(chi2_vals):
+			worked = true
+			break
 
+	assert worked,"no conjugate char found"
 
-
+	return sigma
