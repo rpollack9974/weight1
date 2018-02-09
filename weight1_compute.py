@@ -1,66 +1,45 @@
+### crashes in level 300 in test_form because g is not defined.  I think this happens because
+### forms_equal_to_f returns nothing for some reason.
+
+### need to handle what happens in form_qexp if the decomposition wasn't complete "too many roots"
+### mustn't we only remove CM forms of Artin type
+
+### worried that the old exotic form removal part isn't right. (are multiplicities counted right?  why can we remove?)
+
+### try a very low weak sturm bound
 ### think more carefully about order of hecke operators
 
-###!!! No bound checking in cut_down_to_unique
-## min polys don't determine the form issue
 ## strong_sturm needs to be set in the CM removal issue
-## can compute up to sturm to kick out CM forms --- maybe worth it in some examples e.g. 145
-## no T5 in 145 example above (comes in lift_to_char0)
-## lower bound is wrong in maximal_eigendoubled_Artin
 ## cut out wrong at p
 
 ### STURM is a global variable which gives the bound to which all initial Hecke decompositions are done
-STURM = 13
+STURM = 25
 strong_sturm = 60
 exotic = {}
 pp = {}
 
 
 def collect_wt1_data(Nmin=None,Nmax=None,Ns=None,sturm=None,verbose=false,pass_buck=false):
-#	t = cputime()
 	ans = []
 	if Ns != None:
-		v = Ns
+		levels = Ns
 	else:
-		v = range(Nmin,Nmax+1)
-	for N in v:
+		levels = range(Nmin,Nmax+1)
+	for N in levels:
 		log = "DATA/LOGS/wt1."+str(N)+".log"
 		G = DirichletGroup(N)
 		Gc = G.galois_orbits()
-		Gc = [psi[0] for psi in Gc if psi[0](-1)==-1 and no_steinberg(psi[0])]
-		if verbose > 0:
-			print "----------------------------------------------------"
-			print "Working with level",N
-			print " There are",len(Gc),"space(s) to consider\n"
-		file = open(log,'a')
-		file.write("\n------------------------------------------------\n")
-		file.write("Working with level "+str(N)+"\n")
-		file.write(" There are "+str(len(Gc))+" space(s) to consider\n\n")
-		file.close()
-
+		Gc = [psi[0].minimize_base_ring() for psi in Gc if psi[0](-1)==-1]
+		Gc_short = [psi for psi in Gc if len(steinberg(psi))==0 and len(ramified_ps_test(psi))==0]
+		output(log,verbose,0,"\n----------------------------------------------------")
+		output(log,verbose,0,"Working with level "+str(N))
+		output(log,verbose,0," There are "+str(len(Gc))+" space(s) to consider but only "+str(len(Gc_short))+" after local considerations")
 		worked = true
 		for chi in Gc:
-			chi = convert_character_to_database(chi)
-			chi = chi.minimize_base_ring()
-			if not passes_ramified_ps_test(chi):
-				# print "***********************************"
-				# print "***********************************"
-				# print "***********************************"
-				# print "***********************************"
-				# print "***********************************"
-				# print chi,chi.order()
-				# print "fails new test"
-				# print "***********************************"
-				# print "***********************************"
-				# print "***********************************"
-				# print "***********************************"
-				# print "***********************************"
-				bool = true
-			else:
-				A,bool = wt1(chi,log=log,verbose=verbose,pass_buck=pass_buck)
-				if len(A) > 0:
-					ans += [[chi,A]]
+			A,bool = wt1(chi,log=log,verbose=verbose,pass_buck=pass_buck)
+			if len(A) > 0:
+				ans += [[chi,A]]
 			worked = worked and bool
-#			output(log,verbose,0,"time: "+str(cputime(t))+"\n")
 	return ans,worked
 	
 
@@ -73,32 +52,49 @@ def wt1(chi,sturm=None,log=None,verbose=false,pass_buck=false):
 	OUTPUT:
     A list of the q-expansions (up to Galois conjugacy) of the weight 1 forms with nebentype chi
 	"""
-	chi = convert_character_to_database(chi)
 	chi = chi.minimize_base_ring()
-
-	if not no_steinberg(chi) or not passes_ramified_ps_test(chi):
-		record_to_exotic(chi,[])
-		return [],true
 
 	t = cputime()	
 	ans = []
-	output(log,verbose,1,"Working with "+str(chi))
+	output(log,verbose,1,"\nWorking with "+str(chi))
 
-	output(log,verbose,2,"-Checking old subspace")
+	### checks local conditions to see if weight 1 forms can exist
+	steinberg_primes = steinberg(chi)
+	bad_ramified_ps_primes = ramified_ps_test(chi)
+	if len(steinberg_primes) > 0 or len(bad_ramified_ps_primes) > 0:
+		output(log,verbose,2," No weight 1 forms for local reasons")
+		if len(steinberg_primes) > 0:
+			output(log,verbose,2,"  Steinberg primes: "+str(steinberg_primes))
+		if len(bad_ramified_ps_primes) > 0:
+			output(log,verbose,2,"  Bad ramified principal series primes: "+str(bad_ramified_ps_primes))
+#		record_to_exotic(chi,[])
+		output(log,verbose,0,"time: "+str(cputime(t))+"\n")
+		return [],true
+
+	### checks if old exotic subspace was already computed (and computes them if not)
+	output(log,verbose,2,"**Checking old exotic subspace")
 	low_exotic = lower_bound_from_old_exotic(chi,log,verbose)
-	output(log,verbose,2,"Dimension of old exotic space is "+str(low_exotic))
+	output(log,verbose,2,"***Dimension of old exotic space is "+str(low_exotic))
 
-	output(log,verbose,2,"Done with old subspaces.  Back to "+str(chi))
+	output(log,verbose,2,"**Done with old subspaces.  \nBack to "+str(chi))
 	N = chi.modulus()
 	Nc = chi.conductor()
 
 	lb = lower_bound(chi)
-	output(log,verbose,1,"There are "+str(lb)+" CM form(s)")
+	output(log,verbose,1," There are "+str(lb)+" CM form(s)")
+	output(log,verbose,1," There are "+str(low_exotic)+" old exotic form(s)")
 	lower = lb + low_exotic
+	output(log,verbose,1," CM + old exotic contribute: "+str(lower))
+
+	### computes with various primes until:
+	###   (a) minimum polys are uniquely determined 
+	###   (b) there is at least one prime for which mod p reductions of evals determine evals
+	###   (c) all CM and old exotic forms have been excised
 	spaces = cut_down_to_unique(chi,lower=lower,sturm=sturm,log=log,verbose=verbose)
 	upper = upper_bound(spaces)
 
 	if upper == 0:
+		output(log,verbose,2,"Done by upper/lower bound considerations")
 		output(log,verbose,0,"time: "+str(cputime(t))+"\n")
 		record_to_exotic(chi,[])		
 		return [],true
@@ -109,26 +105,21 @@ def wt1(chi,sturm=None,log=None,verbose=false,pass_buck=false):
 			lower = 0
 			S = unique_space(spaces)
 
-			strong_sturm = ceil(Gamma0(N).index() / 3)  ### IS THIS RIGHT?????
+			strong_sturm = ceil(Gamma0(N).index() / 3)  ###!! IS THIS RIGHT?????
 
-			output(log,verbose,1,"Computing to higher precision")
 			forms_used = []
 			for f in S.forms():
 				if forms_used.count(f) == 0:
-					fq,phi,need_more_primes,lifted,worked = test_form(f,chi,spaces,log=log,verbose=verbose)
+					forms_used += [f]
+					output(log,verbose,1,"\nWorking with the form:\n"+str(f))
+					output(log,verbose,1,"Computing more Hecke-eigenvalues up to Sturm bound of "+str(strong_sturm))
+					### find now (if possible) q-expansion associated to f
+					fqs,spaces,lifted,need_more_primes,verified = test_form(f,chi,spaces,log=log,verbose=verbose)
+					ans += fqs
+					lower = len(ans)
+
 					if need_more_primes:
 						bad_fs += [f]
-					elif lifted:
-						if worked:
-							ans += galois_conjugates(fq,chi,phi)
-							output_answer('DATA/wt1.data',ans,chi,phi)							
-							lower = len(ans)
-						else:
-							output(log,verbose,1,"Failed to verify")
-							remove_form_completely(spaces,f)
-					else:
-						output(log,verbose,2,"eliminated after computing more e-vals")
-						remove_form_completely(spaces,f)
 				upper = upper_bound(spaces)
 				if lower == upper:					
 					record_to_exotic(chi,ans)
@@ -144,20 +135,13 @@ def wt1(chi,sturm=None,log=None,verbose=false,pass_buck=false):
 					if lower == upper:
 						record_to_exotic(chi,ans)
 						return ans,true
-				fq,phi,need_more_primes,lifted,worked = test_form(f,chi,spaces,log=log,verbose=verbose)
+				output(log,verbose,1,"\nWorking (again!) with the form:\n"+str(f))
+				output(log,verbose,1,"Computing more Hecke-eigenvalues up to Sturm bound of "+str(strong_sturm))
+				fqs,spaces,lifted,need_more_primes,verified = test_form(f,chi,spaces,log=log,verbose=verbose)
+				ans += fqs
+				lower = len(ans)
 				if need_more_primes:
 					bad_fs += [f]
-				elif lifted:
-					if worked:
-						ans += galois_conjugates(fq,chi,phi)
-						output_answer('DATA/wt1.data',ans,chi,phi)							
-						lower += len(ans)
-					else:
-						output(log,verbose,1,"Failed to verify")
-						remove_form_completely(spaces,f)
-				else:
-					output(log,verbose,1,"Failed to verify!")
-					remove_form_completely(spaces,f)
 				upper = upper_bound(spaces)
 				if lower == upper:
 					record_to_exotic(chi,ans)
@@ -173,7 +157,6 @@ def wt1(chi,sturm=None,log=None,verbose=false,pass_buck=false):
 
 			output(log,verbose,0,"time: "+str(cputime(t))+"\n")
 
-			record_to_exotic(chi,ans)
 			return ans,lower == upper
 		else:
 			output(log,verbose,-1,"PASSING THE BUCK ON THIS ONE!!!")
@@ -194,7 +177,7 @@ def galois_conjugates(fq,chi,phi):
 	K = fq.base_ring()
 	R = PowerSeriesRing(K,'q')
 	q = R.gen()
-	GG = K.galois_group()
+	GG = K.galois_group(algorithm=magma)
 	for sigma in list(GG):
 		if fixes_chi(sigma,chi,phi):
 			t = 0
@@ -213,15 +196,15 @@ def lower_bound_from_old_exotic(chi,log=None,verbose=False):
 		if d != N/Nc:
 			G_old = DirichletGroup(Nc * d)
 			chi_old = G_old(chi)
-			chi_old = convert_character_to_database(chi_old)
 			chi_old = chi_old.minimize_base_ring()
 			if not exotic.has_key(chi_old):
-				output(log,verbose,2," Computing old subspace attached to "+str(chi_old))
+				output(log,verbose,2,"**Computing old subspace attached to "+str(chi_old)+" (original level: "+str(N)+")")
 				ans,bool = wt1(chi_old,log=log,verbose=verbose)
 				assert bool,"Failed in computing oldforms"
+				lb += len(ans)
 			else:
-				output(log,verbose,2," Old subspace attached to "+str(chi_old)+" already computed")
-			lb += len(exotic[chi_old])
+				output(log,verbose,2," Old subspace attached to "+str(chi_old)+" already computed (original level: "+str(N)+")")
+				lb += len(exotic[chi_old])
 	return lb
 
 
@@ -262,26 +245,26 @@ def record_to_exotic(chi,ans):
 				assert bool,"ugh"
 				if not exotic.has_key(chi_sigma):
 					exotic[chi_sigma] = []
-				exotic[chi_sigma] += [[act_galois_ps(f,sigma),chi_sigma]]
+				exotic[chi_sigma] += [[act_galois_ps(f,sigma),chi_sigma,phi]]  ###! phi_sigma instead?
 
-def test_form(f,chi,spaces,log=None,verbose=False):
-	fs = forms_equal_to_f(spaces,f)
-	d = f.disc()
-	### chooses a form at a prime for which mod p reduction has no kernel on these evals
-	for g in fs:
-		p = g.p()
-		if d % p != 0:
-			break
-	upper = upper_bound(spaces)
-	fq,phi,lifted,need_more_primes,chi = form_qexp(g,fs,upper,log=log,verbose=verbose)
-	if not need_more_primes and lifted:
-		worked = verify(fq,chi,phi,log=log,verbose=verbose)
-	else:
-		worked = false
+# def test_form(f,chi,spaces,log=None,verbose=False):
+# 	fs = forms_equal_to_f(spaces,f)
+# 	d = f.disc()
+# 	### chooses a form at a prime for which mod p reduction has no kernel on these evals
+# 	for g in fs:
+# 		p = g.p()
+# 		if d % p != 0:
+# 			break
+# 	upper = upper_bound(spaces)
+# 	fq,phi,lifted,need_more_primes,chi = form_qexp(g,fs,upper,log=log,verbose=verbose)
+# 	if not need_more_primes and lifted:
+# 		worked = verify(fq,chi,phi,log=log,verbose=verbose)
+# 	else:
+# 		worked = false
 
-	return fq,phi,need_more_primes,lifted,worked
+# 	return fq,phi,need_more_primes,lifted,worked
 
-### chooses a form in each (unique) space equal to f 
+### chooses a form in each (unique?) space equal to f 
 def forms_equal_to_f(spaces,f):
 	fs = []
 	for r in range(len(spaces)):
@@ -337,6 +320,7 @@ def has_unramified_prime(spaces):
 		unramified_prime = unramified_prime and bool
 	return unramified_prime
 
+###! should make one function here for unique and non-unique case
 def upper_bound(spaces):
 	if len(spaces) == 0:
 		return 0  ##! need care here!! could be interpreted wrong
@@ -351,6 +335,7 @@ def upper_bound(spaces):
 				used_forms += [f]
 	return ans
 
+### should give # of CM forms which at level N have a_ell = 0 for ell|N supercuspidal prime (for newforms)
 def lower_bound(chi):
 	N = chi.modulus()
 	Nc = chi.conductor()
@@ -359,7 +344,6 @@ def lower_bound(chi):
 		G_old = DirichletGroup(Nc * d)
 		Nt = N / (Nc * d)
 		chi_old = G_old(chi)
-		chi_old = convert_character_to_database(chi_old)
 		chi_old = chi_old.minimize_base_ring()
 		t = 1
 		if CM.keys().count(chi_old) != 0:
@@ -376,14 +360,12 @@ def lower_bound(chi):
 			lb += t * len(CM[chi_old])
 	return lb
 
-def add_on_another_prime(chi,spaces,p,sturm=None,log=None,verbose=false):
+def add_on_another_prime(chi,spaces,p,lower=0,sturm=None,log=None,verbose=false):
 	if sturm == None:
 		sturm = STURM
 	N = chi.modulus()
 
-	Sp = wt1_space_modp(p,chi,sturm=sturm,verbose=verbose,log=log)
-	if Sp.num_forms() > 0:
-		output(log,verbose,2,"    Intersecting")
+	Sp = wt1_space_modp(p,chi,lower=lower,sturm=sturm,verbose=verbose,log=log)
 	for Sq in spaces:
 		Sp = Sp.intersect(Sq)
 	for i in range(len(spaces)):
@@ -393,15 +375,12 @@ def add_on_another_prime(chi,spaces,p,sturm=None,log=None,verbose=false):
 	for i in range(len(spaces)):
 		spaces[i] = spaces[i].intersect(Sp)
 	spaces += [Sp]
-	if min_num_forms(spaces) > lower_bound(chi):
+	if min_num_forms(spaces) > lower:
 		output_DATA_so_far(spaces,log,verbose)
-	else:
-		output(log,verbose,1,"done by upper/lower bound considerations")
 
 	return spaces
 
 def cut_down_to_unique(chi,lower=0,sturm=None,log=None,verbose=false):
-### get character to agree with Buzzard-Lauder (Huh?)
 	if sturm == None:
 		sturm = STURM
 	N = chi.modulus()
@@ -415,19 +394,15 @@ def cut_down_to_unique(chi,lower=0,sturm=None,log=None,verbose=false):
 	unramified_prime = false
 	old_and_CM_gone = false
 
+	output(log,verbose,3,"Computing mod p for various p")
 	while not (unique and unramified_prime and old_and_CM_gone):
 		p = next_good_prime(p,chi)
-		spaces = add_on_another_prime(chi,spaces,p,sturm=sturm,log=log,verbose=verbose)
+		spaces = add_on_another_prime(chi,spaces,p,lower=lower,sturm=sturm,log=log,verbose=verbose)
 		if unique:
 			U = upper_bound(spaces)
 		else:
 			U = min_num_forms(spaces)
-		if lower == U:
-			spaces = []
-			output(log,verbose,2,"Done by upper/lower considerations")
-			break
-		if U == 0:  ##! this will never be satisfied now
-			output(log,verbose,1,"Weight 1 space has no exotic forms"+'\n')
+		if U <= lower:
 			return []
 		else:
 			unique = is_unique(spaces)
@@ -436,16 +411,17 @@ def cut_down_to_unique(chi,lower=0,sturm=None,log=None,verbose=false):
 		if unique and unramified_prime:
 			### time to try to remove CM and old exotic forms
 			for S in spaces:
-				if is_unique(S) and S.p() != 2:
+				if is_unique(S) and S.p() != 2:  ## p > 2 implies no congruences between exotic and CM
 					break
-			bool = S.remove_old_and_CM(log,verbose)
-			assert bool,"failed on the remove CM/old step"
-			if S.num_forms() == 0:
-#				print "all found forms were CM or old exotic"
-				output(log,verbose,1,"Weight 1 space has no exotic forms"+'\n')
-				return []
-#					print "result at ",S.p(),":",bool,empty
-			old_and_CM_gone = old_and_CM_gone or bool
+			if is_unique(S) and S.p() != 2:
+				bool = S.remove_old_and_CM(log,verbose)
+				assert bool,"failed on the remove CM/old step"
+				old_and_CM_gone = true
+				if S.num_forms() == 0:
+					output(log,verbose,1,"Weight 1 space has no exotic forms"+'\n')
+					return []
+
+		### reporting status after using p
 		output(log,verbose,2,"At the end of computing with p="+str(p)+" we have:")
 		if not unique:
 			output(log,verbose,2," Min polys of FC not yet uniquely defined")
@@ -454,37 +430,9 @@ def cut_down_to_unique(chi,lower=0,sturm=None,log=None,verbose=false):
 		if not old_and_CM_gone:
 			output(log,verbose,2," old and CM forms not yet removed")
 		if unique and unramified_prime and old_and_CM_gone:
-			output(log,verbose,2," We are done here!")
-
+			output(log,verbose,2," We are done here!  Found something and moving on to compute q-expansion")
 
 	return spaces
-
-def unique_to_qexp(chi,forms,sturm=None):
-	if sturm == None:
-		sturm = STURM
-	ans = []
-	for f in forms:
-		### need to allow it to fail on this next line
-		f.grab_eigens(sturm=sturm)
-		f.lift_eigen_system()
-		f.find_qexp()
-
-		ans += [q_exp(ev0,sturm,chi)]
-
-	return ans
-
-def output_answer(filename,ans,chi,phi):
-	if filename != None:
-		file = open(filename,'a')
-		file.write(str(chi)+'\n')
-		file.write(str(chi.change_ring(phi))+'\n')
-		a = chi.change_ring(phi).base_ring().gen()
-		file.write(str(a)+' satisfies '+str(a.minpoly())+'\n')
-		for fq in ans:
-			file.write(str(fq)+'\n')
-			file.write('---\n')
-		file.write('------\n')
-		file.close()
 
 
 def verify(fq,chi,phi,log=None,verbose=false):
@@ -514,7 +462,7 @@ def verify(fq,chi,phi,log=None,verbose=false):
 	return bool
 
 
-def wt1_space_modp(p,chi,verbose=False,sturm=None,log=None):
+def wt1_space_modp(p,chi,lower=0,verbose=False,sturm=None,log=None):
 	"""
 	Returns a weight one space which contains the potential q-expansions of any potential weight 1 form
 
@@ -538,7 +486,7 @@ def wt1_space_modp(p,chi,verbose=False,sturm=None,log=None):
     
 	A weight one space
 	"""
-	output(log,verbose,1,"----")
+	output(log,verbose,1,"------")
 	output(log,verbose,1,"   Working with p = "+str(p)+":")
 	N = chi.modulus()
 	Nc = chi.conductor()
@@ -549,11 +497,10 @@ def wt1_space_modp(p,chi,verbose=False,sturm=None,log=None):
 	else:
 		e = 1
 	
-	M,done = maximal_eigendoubled_Artin(chi,p,sturm=sturm,log=log,verbose=verbose)
+	M,done = maximal_eigendoubled_Artin(chi,p,lower=lower,sturm=sturm,log=log,verbose=verbose)
 	output(log,verbose,1,"    Maximal Artin eigendoubled subspace mod "+str(p)+" has dimension "+str(M.dimension())+
 		" which gives an upper bound of "+str(floor(M.dimension()/e)))
 	if done:
-		output(log,verbose,1,"done by lower/upper bound considerations")
 		return weight_one_space([],chi)
 	else:
 		if N % p != 0:
@@ -563,8 +510,7 @@ def wt1_space_modp(p,chi,verbose=False,sturm=None,log=None):
 		D = decompose(M,chi,sturm,exclude,p,log,verbose)
 		output(log,verbose,1,"    After decomposition into eigenspaces the upper bound is "+str(D.upper_bound()))
 		
-		if D.upper_bound() == D.lower_bound():
-			output(log,verbose,1,"done by lower/upper bound considerations")
+		if D.upper_bound() == lower:
 			return weight_one_space([],chi)
 
 		S = D.wt1_space(sturm=sturm)
@@ -596,7 +542,7 @@ def wt1_space_modp(p,chi,verbose=False,sturm=None,log=None):
 # 	return chi
 
 
-def maximal_eigendoubled_Artin(chi,p,sturm=None,log=None,verbose=False):
+def maximal_eigendoubled_Artin(chi,p,lower=0,sturm=None,log=None,verbose=False):
 	choose_prime_over_p(chi,p)
 	pchi = pp[(chi,p)]
 
@@ -621,12 +567,6 @@ def maximal_eigendoubled_Artin(chi,p,sturm=None,log=None,verbose=False):
 		# 	M = ModularSymbols(chi*omega**(-1),2,1,kk).cuspidal_subspace()
 	R = PolynomialRing(M.base_ring(),'x')
 
-	if CM.has_key(chi):
-		lb = len(CM[chi])
-	else:
-		lb = 0
-
-
 	if N % p != 0:
 		exclude = [p]
 	else:
@@ -643,13 +583,13 @@ def maximal_eigendoubled_Artin(chi,p,sturm=None,log=None,verbose=False):
 
 	output(log,verbose,2,"    Passing to maximal Artin eigen-doubled subspace")
 	r = 0 
-	while (floor(M.dimension()/e) > lb) and (r < len(primes_to_use)):
+	while (floor(M.dimension()/e) > lower) and (r < len(primes_to_use)):
 		ell = primes_to_use[r]
 		M = maximal_eigendoubled_Artin_at_ell(M,chi,ell,sturm,verbose=verbose,log=log)
 		r += 1
 	M = ordinary_subspace(M,p,log=log,verbose=verbose)
 
-	return M,floor(M.dimension()/e) <= lb
+	return M,floor(M.dimension()/e) <= lower
 
 
 ## returns the maximal subspace of M which at ell is of Artin type (wrt chi) and has doubled eigensocle.
@@ -766,15 +706,6 @@ def decompose_helper_at_q(Ms,q,log=None,verbose=false,doubled=true):
 	else:
 		return []
 
-def convert_character_to_database(chi):
-	return chi
-	# chis = chi.galois_orbit()
-	# for psi in chis:
-	# 	if CM.has_key(psi):
-	# 		break
-
-	# return psi
-
 # q-expansion of E_1(chi)
 def E1chi(chi,phi,acc):
 	L = phi(chi(1)).parent()
@@ -818,30 +749,30 @@ def is_in(f,S,phi,acc):
 
 	return bool
 
-## no steinberg primes not dividing conductor
-def no_steinberg(chi):
-	M = chi.modulus()
-	N = chi.conductor()
-	d = M/N
-	bool = true
-	for q in prime_divisors(d):
-		if N.valuation(q) == 0:
-			bool = bool and M.valuation(q) > 1
-	return bool
-
-def passes_ramified_ps_test(chi):
+## returns the primes for which newforms are steinberg
+def steinberg(chi):
 	N = chi.modulus()
 	Nc = chi.conductor()
-	passes = true
+	Nt = N/Nc
+	bool = true
+	ans = []
+	for ell in prime_divisors(Nt):
+		if valuation(Nt,ell) == 1 and valuation(Nc,ell) == 0:
+			ans += [ell]
+	return ans
+
+## returns the ramified prinicpal series primes ell for which the neben at ell had order > 5.
+def ramified_ps_test(chi):
+	N = chi.modulus()
+	Nc = chi.conductor()
 	D = chi.decomposition()
+	ans = []
 	for chi_ell in D:
 		if chi_ell.conductor() > 1:
 			ell = prime_divisors(chi_ell.conductor())[0]
-			if valuation(Nc,ell) == valuation(N,ell):
-				if chi_ell.order() > 5:
-					passes = false
-					break
-	return passes
+			if valuation(Nc,ell) == valuation(N,ell) and chi_ell.order() > 5:
+				ans += [ell]
+	return ans
 
 
 
@@ -880,7 +811,8 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 	kf = pf.residue_field()
 	H = Hom(kchi,kf)
 	found = false
-	phibars = [phibar for phibar in H if phibar(kchi(z)) == kf(phi(z))]
+#	phibars = [phibar for phibar in H if phibar(kchi(z)) == kf(phi(z))]
+#	print "phibars",phibars
 	for phibar in H:
 		if phibar(kchi(z)) == kf(phi(z)):
 			found = true
@@ -937,7 +869,7 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 				ap = -fp[1]
 				evs_modp[q] = ap
 
-			hecke[q] = FC.possible_Artin_polys(evs_modp[q].minpoly(),chi,q,p,upper=upper)
+			hecke[q] = FC.possible_Artin_polys(minpoly_over(evs_modp[q],kchi,phibar),chi,q,p,upper=upper)
 			if len(hecke[q]) == 0:
 				return 0,0,false,need_more_primes,chi
 
@@ -964,13 +896,14 @@ def form_qexp(f,fs,upper,log=None,verbose=None):
 							pi_qs = FC.possible_Artin_polys(fq,chi,q,g.p(),upper=upper)
 						else:
 							pi_alpha = fq.factor()[0][0]
-#							l,phibar2 = pi_alpha.splitting_field('a',map=true)
-							alpha = hom_to_poly(pi_alpha,phibar_g).roots()[0][0]
+							pi_alpha = hom_to_poly(pi_alpha,phibar_g)
+							l,phibar_g_ext = pi_alpha.splitting_field('a',map=true)  ### cgeck here!
+							alpha = hom_to_poly(pi_alpha,phibar_g_ext).roots()[0][0]
 							if N % g.p() != 0:
-								ap = alpha + phibar_g(kchi_g(chi(g.p())))/alpha
+								ap = alpha + phibar_g_ext(phibar_g(kchi_g(chi(g.p()))))/alpha
 							else:
 								ap = alpha
-							fp = minpoly_over(ap,kchi_g,phibar_g)
+							fp = minpoly_over(ap,kchi_g,compose(phibar_g_ext,phibar_g))
 							pi_qs = FC.possible_Artin_polys(fp,chi,g.p(),g.p(),upper=upper)
 #						print q,pi_qs
 						if len(pi_qs) == 0:
@@ -1049,7 +982,7 @@ def choose_prime_over_p(chi,p):
 			pp[(chi,p)] = ideal(p)
 
 def ordinary_subspace(M,p,log=None,verbose=False):
-	output(log,verbose,3,"Passing to ordinary subspace")
+	output(log,verbose,3,"    Passing to ordinary subspace")
 	T = M.hecke_operator(p)
 	fp = T.charpoly()
 	R = fp.parent()
@@ -1098,3 +1031,43 @@ def normalize_character(eps):
 		print "-------------"
 		return eps,False
 
+def output_answer(filename,ans,chi,phi):
+	if filename != None:
+		file = open(filename,'a')
+		file.write(str(chi)+'\n')
+		file.write(str(chi.change_ring(phi))+'\n')
+		a = chi.change_ring(phi).base_ring().gen()
+		file.write(str(a)+' satisfies '+str(a.minpoly())+'\n')
+		for fq in ans:
+			file.write(str(fq)+'\n')
+			file.write('---\n')
+		file.write('------\n')
+		file.close()
+
+
+	
+def test_form(f,chi,spaces,log=log,verbose=verbose):
+	fs = forms_equal_to_f(spaces,f)
+	d = f.disc()
+	### chooses a form at a prime for which mod p reduction has no kernel on these evals
+	for g in fs:
+		if d % g.p() != 0:
+			break
+	upper = upper_bound(spaces)
+	verified = false
+	fqs = []
+	fq,phi,lifted,need_more_primes,chi = form_qexp(g,fs,upper,log=log,verbose=verbose)
+	if not lifted:
+		output(log,verbose,2,"Hecke-eigensystem eliminated after computing more e-vals")
+		remove_form_completely(spaces,f)
+	elif not need_more_primes:
+		verified = verify(fq,chi,phi,log=log,verbose=verbose)
+		if verified:
+			fqs = galois_conjugates(fq,chi,phi)
+			output_answer('DATA/wt1.data',fqs,chi,phi)							
+		else:
+			output(log,verbose,1,"q-expansion created by failed E1chi, f^2 test!")
+			assert 0==1,"does this ever happen??"
+			remove_form_completely(spaces,f)
+
+	return fqs,spaces,lifted,need_more_primes,verified

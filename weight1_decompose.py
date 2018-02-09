@@ -128,7 +128,7 @@ class EigenDecomp(SageObject):
 		fail = false
 		### Getting minpolys away from p
 		for q in h.keys():
- 			if exclude.count(q) == 0 and ((N % p == 0 and q == p) or q != p):
+ 			if exclude.count(q) == 0 and q != p:
 				h0[q] = FC.possible_Artin_polys(h[q],chi,q,p,upper=upper)
 #				print q,h0[q]
 				if len(h0[q]) == 0:

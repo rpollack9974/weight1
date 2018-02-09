@@ -1,40 +1,4 @@
 
-## trying to get eps take values in some normalized form with smallest coefficient field
-def normalize_character(eps):
-	eps = eps.minimize_base_ring()
-	K = eps(1).parent()
-	if K == QQ:
-		K = CyclotomicField(2)
-	N = K.zeta_order()
-	L = CyclotomicField(N)
-	Maps = Hom(K,L)
-	if len(Maps)>0:
-		phi = Hom(K,L)[0]
-		eps = eps.change_ring(phi)
-		eps = eps.minimize_base_ring()
-		return eps,True
-	else:
-		print "Problem with:"
-		print eps.modulus()
-		print eps
-		print "-------------"
-		return eps,False
-
-def act_galois_char(chi,sigma):
-	chis = chi.galois_orbit()
-	vals_chi = chi.values_on_gens()
-	for psi in chis:
-		if map(sigma,vals_chi) == list(psi.values_on_gens()):
-			return psi
-	assert 1==0,"failed in act_galois"
-
-def act_galois_ps(f,sigma):
-	R = f.parent()
-	q = R.gen()
-	ans = 0
-	for n in range(f.degree()+1):
-		ans += sigma(f[n]) * q**n
-	return ans
 
 def characters_with_CM_forms(fs):
 	chrs = []
@@ -72,26 +36,29 @@ def form_CM_dict(fs,prec,Nmin=None,Nmax=None):
 				print "extending:",eps
 				f = extend_qexpansion(f,eps,prec)
 			Kf = f.base_ring()
-			if Kf == QQ:
-				Kf = CyclotomicField(2)
-			G = Kf.galois_group()
-			for sigma in G:			
-				eps_sigma = act_galois_char(eps,sigma)
-				print sigma,eps_sigma
-				chi,bool = normalize_character(eps_sigma)
-				if bool:
-					if not CM.has_key(chi):
-						CM[chi] = []
-					K = chi(1).parent()
-					if K == QQ:
-						K = CyclotomicField(2)
-					L = eps_sigma(1).parent()
-					for phi in list(Hom(K,L)):
-						if chi.change_ring(phi) == eps_sigma:
-							break
-					data = (act_galois_ps(f,sigma),chi,phi)
-					if CM[chi].count(data) == 0:
-						CM[chi] += [(act_galois_ps(f,sigma),chi,phi)]
+			if Kf.degree() <= 11:
+				if Kf == QQ:
+					Kf = CyclotomicField(2)
+				G = Kf.galois_group()
+				for sigma in G:			
+					eps_sigma = act_galois_char(eps,sigma)
+					print sigma,eps_sigma
+					chi,bool = normalize_character(eps_sigma)
+					if bool:
+						if not CM.has_key(chi):
+							CM[chi] = []
+						K = chi(1).parent()
+						if K == QQ:
+							K = CyclotomicField(2)
+						L = eps_sigma(1).parent()
+						for phi in list(Hom(K,L)):
+							if chi.change_ring(phi) == eps_sigma:
+								break
+						data = (act_galois_ps(f,sigma),chi,phi)
+						if CM[chi].count(data) == 0:
+							CM[chi] += [(act_galois_ps(f,sigma),chi,phi)]
+			else:
+				print "SKIPPING BECAUSE OF BIG GALOIS GROUP"
 			r += 1
 		if eps.modulus() > Nmax:
 			break 

@@ -752,60 +752,6 @@ class weight_one_space(SageObject):
 				return False
 		return True
 
-	# def set_form(self,j,f):
-	# 	"""
-	# 	Sets the j-th form of self equal to f.
-
-	# 	INPUT:
-	# 	- j -- integer (less than the number of forms of self)
-	# 	- f -- a weight one form
-
-	# 	OUTPUT:
-        
-	# 	none
-	# 	"""
-	# 	self.form[j] = f
-
-# 	def remove_CM(self):
-# 		if self.num_forms() == 0:
-# 			return None
-# 		sturm = STURM 
-# 		p = self.p()
-# 		chi = self.chi()
-# 		N = chi.modulus()
-# 		Nc = chi.conductor()
-# 		Nt = N / Nc
-# 		bool = true
-# 		for d in divisors(Nt):
-# #			print "Trying divisor",d,Nc,N
-# 			G_old = DirichletGroup(Nc * d)
-# 			chi_old = G_old(chi)
-# 			chi_old = convert_character_to_database(chi_old)
-# 			chi_old = chi_old.minimize_base_ring()
-# 			if CM.keys().count(chi_old) != 0:
-# 				for f in CM[chi_old]:
-# 					eps = f[1]  ## eps is the same as chi_old except its values have already been extended to K_f
-# 					f = f[0]
-# 					olds = oldforms(f,eps,d,N)
-# 					# print "p",self.p()
-# 					# print "A",olds
-# 					# print "B",self
-# 					for g in olds:
-# 						m = self.hecke_multiplicity(g[0])
-# 						assert m >= g[1],"CM not found!!"
-# 						if m == g[1]:
-# 							bad = []
-# 							for r in range(self.num_forms()):
-# 								if self[r].hecke() == g[0]:
-# 									bad += [r]
-# 							bad.reverse()
-# 							for ind in bad:
-# 								self.remove(self[ind])
-# 						else:
-# #							print "WRONG NUMBER OF CM FORMS HERE"
-# 							bool = false
-# 		return bool
-
 	def remove_old_and_CM(self,log=None,verbose=False):
 		if self.num_forms() == 0:
 			return None
@@ -824,7 +770,6 @@ class weight_one_space(SageObject):
 			if d % p != 0:
 				G_old = DirichletGroup(Nc * d)
 				chi_old = G_old(chi)
-				chi_old = convert_character_to_database(chi_old)
 				chi_old = chi_old.minimize_base_ring()
 				if CM.has_key(chi_old) != 0:
 					for g in CM[chi_old]:
@@ -837,8 +782,9 @@ class weight_one_space(SageObject):
 						# print "A",olds
 						# print "B",self
 				if d != Nt:
-					if len(exotic[chi_old]) != 0:
+					if exotic.has_key(chi_old) and len(exotic[chi_old]) != 0: ###! assumes here if no key no forms
 						for g in exotic[chi_old]:
+							print g
 							f = g[0]
 							eps = g[1]  
 							phi = g[2]
@@ -858,10 +804,10 @@ class weight_one_space(SageObject):
 				hecke_used += [h]
 				m = self.hecke_multiplicity(h)
 				d = max_degree(h,exclude=[p])
-#				print "A",m
-#				print "working on",g[0],"--",h
-#				print "have",m,"copies of this form and am expecting",g[2]
-#				print self
+				# print "A",m
+				# print "working on",g[0],"--",h
+				# print "have",m,"copies of this form and am expecting",g[2]
+				# print self
 				assert m >= g[2],"CM/old not found!!"+str(g[0])+"p="+str(p)+str(self)
 				if m == g[2]:
 					### multiplicity exactly correct so we can throw away these CM forms safely
@@ -978,6 +924,7 @@ def square_free(f):
 ##
 ## chi should take values in the field of FC of f
 def oldforms(f,chi,d,N,phi,sturm=None):
+	print "in oldforms with",f
 	Nc = chi.conductor()
 	L = f.base_ring()
 	Qchi = chi(1).parent()
@@ -1038,6 +985,7 @@ def oldforms(f,chi,d,N,phi,sturm=None):
 			else:
 				new_v += [[t[0],phi,(valuation(Nt,ell) + 1)*t[2]]]
 		v = new_v
+	print "ans",v
 	return v
 
 def combine(all_olds,olds):

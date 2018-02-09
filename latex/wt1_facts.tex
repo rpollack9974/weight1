@@ -1,0 +1,528 @@
+\documentclass[11pt]{amsart}
+%%\documentclass{amsart}
+
+
+
+\usepackage{amsmath,amsthm,amssymb}
+
+\usepackage{hyperref}
+\usepackage{cancel}
+
+
+\usepackage{tikz}
+\usetikzlibrary{matrix,arrows}
+
+
+
+\theoremstyle{plain}
+
+\newtheorem{thm}{Theorem}[section]
+%\newtheorem{prop}{Proposition}[section]
+\newtheorem{prop}[thm]{Proposition}
+\newtheorem{lemma}[thm]{Lemma}
+\newtheorem{cor}[thm]{Corollary}
+
+\theoremstyle{definition}
+\newtheorem{ex}[thm]{Example}
+\newtheorem{defn}[thm]{Definition}
+\newtheorem{remark}[thm]{Remark}
+\newtheorem{conj}[thm]{Conjecture}
+
+
+
+
+\newtheorem{lem}[thm]{Lemma}  
+\newtheorem{rem}[thm]{Remark}  
+\newtheorem{alg}[thm]{Algorithm}  
+\newtheorem{prob}[thm]{Problem}  
+
+
+
+
+%Letters
+\newcommand{\A}{{\mathcal A}}
+\newcommand{\bA}{{\bf A}}
+\newcommand{\D}{{\mathcal D}}
+\newcommand{\bD}{{\bf D}}
+\newcommand{\E}{{\mathcal E}}
+\newcommand{\F}{{\mathcal F}}
+\newcommand{\K}{{\mathcal K}}
+\renewcommand{\O}{{\mathcal O}}
+\newcommand{\p}{{\mathfrak p}}
+\newcommand{\M}{{\mathcal M}}
+\newcommand{\U}{{\mathcal U}}
+\renewcommand{\S}{{\mathcal S}}
+\newcommand{\T}{{\mathbb T}}
+\newcommand{\ve}{\varepsilon}
+\newcommand{\oo}{\text{o}}
+\newcommand{\OO}{\text{O}}
+\renewcommand{\H}{\mathcal H}
+\newcommand{\w}{\omega}
+
+%Number systems
+\newcommand{\N}{{\mathbb N}}
+\newcommand{\Z}{{\mathbb Z}}
+\newcommand{\Q}{{\mathbb Q}}
+\newcommand{\R}{{\mathbb R}}
+\newcommand{\C}{{\mathbb C}}
+\newcommand{\Fp}{{\mathbb F}_p}
+\newcommand{\Fpbar}{\overline{\mathbb F}_p}
+\newcommand{\Qpbar}{\overline{{\Q}}_p}
+\newcommand{\Qbar}{\overline{{\Q}}}
+\newcommand{\Obar}{\overline{\O}}
+\newcommand{\pbar}{\overline{{\mathfrak p}}}
+\newcommand{\OK}{{\mathcal O}_K}
+\renewcommand{\P}{{\mathbb P}}
+\newcommand{\Zp}{\Z_p}
+\newcommand{\Zpx}{\Z_p^\times}
+\newcommand{\Qpx}{\Q_p^\times}
+\newcommand{\Cpx}{\C_p^\times}
+\newcommand{\Qp}{\Q_p}
+\newcommand{\Cp}{\C_p}
+
+%Maps
+\newcommand{\inj}{\hookrightarrow}
+\newcommand{\surj}{\twoheadrightarrow}
+\newcommand{\maps}{\rightarrow}
+\newcommand{\lra}{\longrightarrow}
+
+%Matrices
+\newcommand{\mat}{\begin{pmatrix} a & b \\ c & d \end{pmatrix}}
+\newcommand{\smallmat}{\bigl( \begin{smallmatrix} a & b \\ c & d \end{smallmatrix} \bigr)}
+\newcommand{\sigop}{\Sigma_0(p)}
+\newcommand{\sop}{S_0(p)}
+\newcommand{\psmallmat}[4]{\left( \begin{smallmatrix} #1 & #2 \\ #3 & #4 \end{smallmatrix} \right)}
+\newcommand{\pmat}[4]{\left( \begin{matrix} #1 & #2 \\ #3 & #4 \end{matrix} \right)}
+\newcommand{\bap}{\beta(a,p)}
+\newcommand{\bapn}{\beta(a,p^n)}
+
+
+%Random
+\newcommand{\wt}{\widetilde}
+\newcommand{\ol}{\overline}
+\renewcommand{\binom}[2]{\genfrac{(}{)}{0pt}{}{#1}{#2}}
+\newcommand{\Dinf}{\{0\} - \{\infty\}}
+\renewcommand{\sp}{{\rho^*_k}}
+\newcommand{\spd}{{\rho_k}}
+\newcommand{\olsp}{{\ol{\rho}^*_k}}
+
+%Spaces
+\newcommand{\Arigv}[1]{\bA[#1]}
+\newcommand{\Avrigv}[2]{\bA_{#1}[#2]}
+\newcommand{\Drigv}[1]{\bD[#1]}
+\newcommand{\Dvrigv}[2]{\bD_{#1}[#2]}
+\newcommand{\Dvrig}[1]{\bD_{#1}}
+\newcommand{\Drig}{\bD}
+\newcommand{\Dkrig}{\Dvrig{k}}
+
+\newcommand{\Avocv}[2]{\A_{#1}^\dag(\Zp,#2)}
+\newcommand{\Avoc}[1]{\A_{#1}^\dag(\Zp,1)}
+\newcommand{\Aocv}[1]{\A^\dag(\Zp,#1)}
+\newcommand{\Akoc}{\Avoc{k}}
+\newcommand{\Aoc}{\Aocv{1}}
+\newcommand{\Dvocv}[1]{\D_{#1}^\dag(\Zp,#1)}
+\newcommand{\Dvoc}[1]{\D_{#1}^\dag(\Zp,1)}
+\newcommand{\Docv}[1]{\D^\dag(\Zp,#1)}
+\newcommand{\Dkocv}[1]{\D^\dag(\Zp,#1)}
+\newcommand{\Dkoc}{\D_k^\dag}
+\newcommand{\Doc}{\D^\dag}
+
+
+\newcommand{\Ala}{\A(\Zp)}
+\newcommand{\Avla}[1]{\A_{#1}(\Zp)}
+\newcommand{\Akla}{\Avla{k}}
+\newcommand{\Dvla}[1]{\D_{#1}(\Zp)}
+\newcommand{\Dla}{\D(\Zp)}
+\newcommand{\Dkla}{\Dvla{k}}
+\newcommand{\Dk}{\D_{k}}
+
+\newcommand{\FkM}{\F_k(M)}
+
+
+
+%Math Operators
+\DeclareMathOperator{\Div}{Div} 
+\DeclareMathOperator{\Hom}{Hom}
+\DeclareMathOperator{\ord}{ord} 
+\DeclareMathOperator{\PGL}{PGL}
+\DeclareMathOperator{\GL}{GL} 
+\DeclareMathOperator{\SL}{SL}
+\DeclareMathOperator{\PSL}{PSL} 
+\DeclareMathOperator{\Symb}{Symb}
+\DeclareMathOperator{\Sym}{Sym} 
+\DeclareMathOperator{\coker}{coker} 
+\DeclareMathOperator{\im}{im}
+\DeclareMathOperator{\Fil}{Fil}
+\DeclareMathOperator{\trunc}{trunc}
+\DeclareMathOperator{\nil}{nil}
+\DeclareMathOperator{\ordin}{ord}
+\DeclareMathOperator{\new}{new}
+\DeclareMathOperator{\tr}{trace}
+
+
+%Modular Symbols
+\newcommand{\MS}[1]{\Symb_{\Gamma}(#1)}
+\newcommand{\MSo}[1]{\Symb_{\Gamma_0}(#1)}
+\newcommand{\Pfl}{\Phi_{f,\lambda}}
+
+\newcommand{\rhobar}{\overline{\rho}}
+
+
+
+
+
+%% Jon's Commands
+
+\newcommand{\GCD}{\mathrm{GCD}}
+\newcommand{\Char}{\mathrm{Char}}
+\newcommand{\Rad}{\mathrm{Rad}}
+
+\newcommand{\Ker}{\mathrm{Ker}}
+\renewcommand{\Im}{\mathrm{Im}}
+
+\newcommand{\NormF}{\mathrm{N}_{F/\Q}}
+
+
+
+\newcommand{\even}{\text{-even}}
+\newcommand{\aevenatp}{\a\even\text{ at $\p$}}
+
+\newcommand{\B}{\mathcal{B}}
+
+
+\newcommand{\x}{\vec{x}}
+\newcommand{\y}{\vec{y}}
+\renewcommand{\v}{\vec{v}}
+
+\newcommand{\vr}{\vec{r}}
+\newcommand{\vl}{\vec{l}}
+\newcommand{\va}{\vec{a}}
+\newcommand{\vi}{\vec{\iota}}
+
+
+
+%\newcommand{\F}{\mathbb{F}}
+\renewcommand{\P}{\mathbb{P}}
+
+\renewcommand{\SS}{\mathbb{S}}
+\newcommand{\DD}{\mathbb{D}}
+
+
+\renewcommand{\O}{\mathcal{O}}
+
+
+
+\renewcommand{\a}{\mathfrak{a}}
+\renewcommand{\b}{\mathfrak{b}}
+\renewcommand{\c}{\mathfrak{c}}
+
+\renewcommand{\l}{\mathfrak{l}}
+\newcommand{\n}{\mathfrak{n}}
+\newcommand{\s}{\mathfrak{s}}
+
+
+
+\newcommand{\al}{\alpha}
+
+
+
+\newcommand{\ra}{\rightarrow}
+
+
+
+
+
+\newcommand{\half}{\tfrac{1}{2}}
+
+
+
+\renewcommand{\L}{\errorrrrrr}
+
+
+
+\newcommand{\latI}{\mathcal{I}}
+\newcommand{\latK}{\mathcal{K}}
+\newcommand{\latL}{\mathcal{L}}
+\newcommand{\latM}{\mathcal{M}}
+\newcommand{\latN}{\mathcal{N}}
+
+
+
+\newcommand{\Span}{\text{Span}}
+
+
+\newcommand{\pip}{\pi_\p}
+\newcommand{\q}{{\mathfrak q}}
+
+
+\newcommand{\leg}[2]{\left( \frac{#1}{#2} \right)}
+
+\DeclareMathOperator{\Tr}{trace}
+
+
+\newcommand{\charpoly}{\text{CharPoly}}
+\newcommand{\Frob}{\text{Frob}}
+\renewcommand{\[}{\left[}
+\renewcommand{\]}{\right]}
+
+\newcommand{\Tcal}{\mathcal{T}}
+\newcommand{\End}{\text{End}}
+\newcommand{\m}{\mathfrak{m}}
+
+\newcommand{\dbar}{\overline{d}}
+
+
+\begin{document}
+
+\subsection{Steinberg fact}
+Consider $\chi$ a Dirichlet character of modulus $N$ and conductor $N_\chi$.  Write $N = N_\chi \cdot N'$.  Let $d_\chi$ denote the order of $\chi$.
+
+~\\
+
+\noindent
+{\bf Fact:} if $q \nmid N_\chi$ and $q || N'$, then $S_1^{\new}(N,\chi) = 0$.  
+
+~\\
+
+The reason is easy.  At such a $q$, the associated Galois representation is Steinberg and thus has infinite image.  But this is not possible for a weight 1 form.
+
+Here' something new.  If $\ord_
+\ell(N) = \ord_\ell(N_\chi)$, then the Galois representation at $\ell$ has an unramified quotient which sends $\Frob_\ell$ to $a_\ell$.  In particular, for $\sigma \in G_{\Q_\ell}$ lifting $\Frob_\ell$, we have
+$$
+\rho(\sigma) = 
+\begin{pmatrix}
+\chi(\sigma) a_\ell^{-1} & 0 \\
+0 & a_\ell
+\end{pmatrix}.
+$$
+If $\overline{d}_\sigma$ is the projective order of $\rho(\sigma)$, then we have 
+$$
+\chi(\sigma)^{\overline{d}_\sigma} a_\ell^{-\overline{d}_\sigma} = a_\ell^{\overline{d}_\sigma}.
+$$
+Write $\chi = \chi_\ell \cdot \chi^{\ell}$ which $\chi_\ell$ is a character of modulus a power of $\ell$ and $\chi^{\ell}$ has modulus prime to $\ell$.  Then 
+$$
+\chi_\ell(\sigma)^{\overline{d}_\sigma} \chi^\ell(\ell)^{\overline{d}_\sigma}  a_\ell^{-\overline{d}_\sigma} = a_\ell^{\overline{d}_\sigma}
+$$
+nothing that $\chi^\ell(\sigma) = \chi^\ell(\ell)$ as $\sigma$ lifts $\Frob_\ell$.
+
+Choosing $\sigma$ such that $\sigma_\ell(\sigma) = 1$ then gives
+$$
+a_\ell^{2 \overline{d}} = \chi^{\ell}(\ell)^{2\overline{d}}
+$$
+where $\overline{d}$ is in $\{1,2,3,4,5\}$.
+
+On the other hand, if $D$ is the gcd of two elements of $\{1,2,3,4,5\}$, then 
+$$
+\chi_\ell(\sigma)^D \chi^\ell(\ell)^D  a_\ell^{-D} = a_\ell^D
+$$
+and
+$$
+\chi^\ell(\ell)^D  a_\ell^{-D} = a_\ell^D.
+$$
+In particular,
+$$
+\chi_\ell(\sigma)^D = 1
+$$
+for all $\sigma$.  Thus the order of $\chi_\ell$ divides $D$.  This puts a new condition on when weight 1 forms can exist!
+
+
+\subsection{Fourier coefficients}
+
+Let $f = \sum_n a_n q^n$ with $a_1=1$ be a newform in $S_1(N,\chi)$.\\
+
+\begin{prop}~\\
+\begin{enumerate}
+\item if $\ell \nmid N$, then 
+$$
+a_\ell^2 = c \chi(\ell)
+$$
+where $c=0,1,2$ or $4$.
+
+\item if $\ell | N_\chi$, $\ell \nmid N'$, then
+$$
+a_\ell^{2e} = 1
+$$ 
+where $e = d_\chi \overline{d} / \gcd(d_\chi,\overline{d})$ and $\overline{d}$ is a projective order:\ that is, $\overline{d} = 1,2,3,4$ or $5$.
+
+\item if $\ell | N'$, then
+$$
+a_\ell = 0.
+$$
+\end{enumerate}
+\end{prop}
+
+\begin{proof}
+The first part is Buzzard-Lauder, Lemma 1(b).
+
+For the second part, if $\ell | N_\chi$ but $\ell \nmid N'$, then $\pi_\ell(f)$ is the ramified principal series $\pi(\chi_1,\chi_2)$ where $\chi_2$ is unramified with $\chi_2(\Frob_\ell) = a_\ell$ and $\chi_1 \chi_2 = \chi$ (Loeffler-Weinstein, Prop 2.8).  In particular, $\rho_f$ at $\ell$ is simply the direct sum $\chi_1 \oplus \chi_2$ (noting that the representation must be semi-simple as it is finite order).  Thus if $\sigma \in \Frob_\ell I_\ell$ with $I_\ell$ equal to inertia at $\ell$, then
+$$
+\rho_f(\sigma) = 
+\begin{pmatrix}
+\chi(\sigma)/a_{\ell} & 0 \\
+0 & a_\ell \\
+\end{pmatrix}
+$$
+and
+$$
+\rho_f(\sigma)^e = 
+\begin{pmatrix}
+a_{\ell}^{-e} & 0 \\
+0 & a_\ell^e \\
+\end{pmatrix}
+$$
+is a diagonal matrix as both $d_\chi$ and $\overline{d}$ divide $e$.  Thus, $a_\ell^{e} = a_{\ell}^{-e}$ and $a_{\ell}^{2e} =1$ as desired.
+
+For the third part, $\pi_\ell(f)$ is supercuspidal again by the same Loeffler-Weinstein reference above which implies $a_\ell=0$.
+\end{proof}
+
+Let $\pi_{\ell}(x)$ denote the minimum polynomial of $a_\ell$ over $\Q$ and set $d_\ell$ equal to the degree of this polynomial.  Let $d_\chi = [\Q(\chi) : \Q]$ which is the order of $\chi$.
+
+\begin{prop}
+We have
+$$
+d_\ell \leq \gcd(d_\ell,d_\chi) \cdot \dim S_1(N,\chi).
+$$
+\end{prop}
+
+\begin{proof}
+If $K_f$ is the field of Fourier coefficients of $f$, then $[K_f:\Q(\chi)] \leq \dim S_1(N,\chi)$ as all of the $\Q(\chi)$-Galois conjugates of $f$ are in this weight 1 space.  Thus
+\begin{align*}
+S_1(N,\chi) 
+&\geq [K_f:\Q(\chi)] \\
+&\geq [\Q(\chi,a_\ell):\Q(\chi)] \\
+&= [\Q(a_\ell):\Q(\chi) \cap \Q(a_\ell)] \\
+&= [\Q(a_\ell):\Q] / [\Q(\chi) \cap \Q(a_\ell):\Q] \\
+&\geq d_\ell / \gcd(d_\ell, d_\chi).
+\end{align*}
+Here the first equalities follows since $K_f/\Q$ is an abelian extension and last follows since $[\Q(\chi) \cap \Q(a_\ell):\Q]$ divides both $d_\chi$ and $d_\ell$.
+\end{proof}
+\vfill
+\pagebreak
+Let $\rho : G_{\Q} \to \GL_2(\C)$ be an Artin representation with conductor $N$ and determinant $\chi$.  In this note, we will describe all possible values of the trace of Frobenius at a prime $\ell \nmid N$.  
+
+\begin{thm}
+For $\ell \nmid N$, let $A = \rho(\Frob_\ell) \in \GL_2(\C)$ and let $\overline{A}$ denote the image of $A$ in $\PGL_2(\C)$.  If the order of $A$ is $d$, the order of $\overline{A}$ is $\overline{d}$, and the order of $\chi(\ell) \in \C^\times$ is $r$, then 
+$$
+d = \begin{cases}
+\frac{2 r \dbar}{\gcd(r,\dbar)} & \text{~if~} 2 \mid \frac{r}{\gcd(r,\dbar)} \\ 
+~\\
+\frac{r \dbar}{\gcd(r,\dbar)} \text{~or~} \frac{2 r \dbar}{\gcd(r,\dbar)} & \text{~otherwise}
+\end{cases}
+$$
+\end{thm}
+
+\begin{proof}
+Let $\langle A \rangle$ denote the cyclic subgroup of $\GL_2(\C)$ generated by $A$ and similarly for $\overline{A}$.  
+We then have an exact sequence
+$$
+1 \to \langle A \rangle \cap \C^\times \to \langle A \rangle \to \langle \overline{A} \rangle \to 1.
+$$
+Since $\dbar$ is the smallest positive integer such that $A^{\dbar}$ is diagonal, this sequence is the same as 
+$$
+1 \to \langle A^{\dbar} \rangle  \to \langle A \rangle \to \langle \overline{A} \rangle \to 1.
+$$
+Thus, we have
+$$
+d = \dbar \cdot \ord(A^{\dbar}).
+$$
+
+
+To prove this theorem, we must then compute $\ord(A^{\dbar})$.  To this end, since $A^{\dbar}$ is diagonal with determinant $\chi(\ell)^{\dbar}$, we have
+$$
+A^{\dbar} = 
+\begin{pmatrix}   \sqrt{\chi(\ell)^{\dbar}} & 0 \\ 0 & \sqrt{\chi(\ell)^{\dbar}} \end{pmatrix}
+\text{~or~}
+\begin{pmatrix}   -\sqrt{\chi(\ell)^{\dbar}} & 0 \\ 0 & -\sqrt{\chi(\ell)^{\dbar}} \end{pmatrix}
+$$
+where $\sqrt{\chi(\ell)^{\dbar}}$ is some fixed square root of ${\chi(\ell)^{\dbar}}$.
+Thus, the order of $A^{\dbar}$ is simply the multiplicative order of $\pm  \sqrt{\chi(\ell)^{\dbar}}$.
+
+We have $r = \ord(\chi(\ell))$.  Thus, $\ord(\sqrt{\chi(\ell)^{\dbar}}) = \displaystyle \frac{2r}{\gcd(r,\dbar)}$.  Now if $\zeta$ is a primitive $4n$-th root of unity, then the same is true of $-\zeta$.  However, if $\zeta$ is a primitive $2n$-th root of unity with $n$ odd, then $-\zeta$ is either a primitive $2n$-th root of unity or a primitive $n$-root of unity.  The theorem follows from this.
+\end{proof}
+
+
+\begin{remark}
+We note that one can easily use this theorem to compute the trace of Frobenius as one can readily compute the trace of matrix given its order and determinant.  Indeed, if $A$ has order $d$ and determinant $m$, then it's eigenvalues are $\zeta_d$ and $\zeta_d^{-1} m$ where $\zeta_d$ is a primitive $d$-th root of unity and thus the trace of $A$ is $\zeta_d + m \zeta_d^{-1}$.  (NO!  THIS IS WRONG BUT EASILY FIXED -- NEED TO DEAL WITH DIVISORS OF $d$.)
+
+Here's a table of traces of matrices with determinant 1:
+
+\begin{center}
+\begin{tabular}{|c|c|c|}
+\hline
+$d $  & $\zeta_d + \zeta_d^{-1}$ & trace \\
+\hline
+1 & 1 + 1 & 2 \\
+2 & -1 + -1 & -2  \\
+3 & $\zeta_3 + \zeta_3^{-1}$ & -1  \\
+4 & $\zeta_4 + \zeta_4^{-1}$ & 0 \\
+5 & $\zeta_5 + \zeta_5^{-1}$  & $\frac{-1 \pm \sqrt{5}}{2}$ \\
+6 & $\zeta_6 + \zeta_6^{-1}$  & 1 \\
+8 & $\zeta_8 + \zeta_8^{-1}$  & $\pm \sqrt{2}$ \\
+10 & $\zeta_{10} + \zeta_{10}^{-1}$  & $\frac{1 \pm \sqrt{5}}{2}$ \\
+\hline
+\end{tabular}
+\end{center}
+
+Here's a table of traces of matrices with determinant -1:
+
+\begin{center}
+\begin{tabular}{|c|c|c|}
+\hline
+$d $  & $\zeta_d - \zeta_d^{-1}$ & trace \\
+\hline
+2 & -1 - -1 & 0  \\
+%3 & $\zeta_3 - \zeta_3^{-1}$ & \pm \sqrt{-3}  \\
+4 & $\zeta_4 - \zeta_4^{-1}$ &  $\pm 2 i$ \\
+%5 & $\zeta_5 - \zeta_5^{-1}$  & $\frac{-1 \pm \sqrt{5}}{2}$ \\
+%6 & $\zeta_6 + \zeta_6^{-1}$  & -1 \\
+8 & $\zeta_8 - \zeta_8^{-1}$  & $\pm \sqrt{-2}$ \\
+12 & $\zeta_{12} - \zeta_{12}^{-1}$  & $\pm i$ \\
+20 & $\zeta_{20} - \zeta_{20}^{-1}$  & $\pm \sqrt{\frac{-3 \pm \sqrt{5}}{2}}$ \\
+\hline
+\end{tabular}
+\end{center}
+
+\end{remark}
+
+
+
+Now we use this theorem to compare to Serre's claims on page 263 at the bottom of his weight 1 article.  Namely, let $N = q$ a prime and take $\chi$ to be a quadratic character.  In this case, the projective image of $\rho(G_\Q)$ is either $S_4$ or $A_5$.  
+
+Let's first analyze the $S_4$ case.  In this group the possible orders are 1,2,3, and 4.  (These are the possible values of $\dbar$ from the last theorem.)  We proceed in two cases: $\chi(\ell) = 1$ or $\chi(\ell) = -1$; that is, $r=1$ or $r=2$. When $r = 1$, we have $\frac{r \dbar}{\gcd(r,\dbar)} = 1$ is always odd and $\frac{r \dbar}{\gcd(r,\dbar)} = \dbar$.  Thus 
+\begin{itemize}
+\item $\dbar = 1 \implies d = 1 \text{~or~} 2 \implies \tr = 2 \text{~or~} -2$
+\item $\dbar = 2 \implies d = 2 \text{~or~} 4 \implies \tr = -2 \text{~or~} 0$
+\item $\dbar = 3 \implies d = 3 \text{~or~} 6 \implies \tr = -1 \text{~or~} 1$
+\item $\dbar = 4 \implies d = 4 \text{~or~} 8 \implies \tr = 0 \text{~or~}\pm \sqrt{2}$
+\end{itemize}
+Thus, the possible traces are $0, \pm 1, \pm 2, \pm \sqrt{2}$.  This exactly matches Serre would predicts that the traces have squares equal to 0,1,2 and 4.
+
+When $r = 2$, we have
+\begin{itemize}
+\item $\dbar = 1 \implies \frac{r}{\gcd(r,\dbar)} = 2 \implies d = 4 \implies \tr = \pm 2i$
+\item $\dbar = 2 \implies \frac{r}{\gcd(r,\dbar)} = 1 \implies d = 2 \text{~or~} 4 \implies \tr = 0, \pm 2i$
+\item $\dbar = 3 \implies \frac{r}{\gcd(r,\dbar)} = 2 \implies d = 12 \implies \tr = \pm i$
+\item $\dbar = 4 \implies \frac{r}{\gcd(r,\dbar)} = 1 \implies d = 4 \text{~or~} 8 \implies \tr = \pm 2i , \pm \sqrt{-2}$
+\end{itemize}
+Thus, the possible traces are $0, \pm i, \pm 2i, \pm \sqrt{-2}$.  This exactly matches Serre would predicts that the traces have squares equal to 0,-1,-2 and -4.  Great!
+
+Now on to $A_5$.  We then have $\dbar = 1,2,3,$ or 5. Again, taking $r=1$,
+we have $\frac{r \dbar}{\gcd(r,\dbar)} = 1$ is always odd and $\frac{r \dbar}{\gcd(r,\dbar)} = \dbar$.  Thus
+\begin{itemize}
+\item $\dbar = 1 \implies d = 1 \text{~or~} 2 \implies \tr = 2 \text{~or~} -2$
+\item $\dbar = 2 \implies d = 2 \text{~or~} 4 \implies \tr = -2 \text{~or~} 0$
+\item $\dbar = 3 \implies d = 3 \text{~or~} 6 \implies \tr = -1 \text{~or~} 1$
+\item $\dbar = 5 \implies d = 5 \text{~or~} 10 \implies \tr = \frac{-1 \pm \sqrt{5}}{2} \text{~or~} \frac{1 \pm \sqrt{5}}{2} $
+\end{itemize}
+Thus, the possible traces are $0, \pm 1, \pm 2, \frac{\pm 1 \pm \sqrt{5}}{2}$.  This exactly matches Serre would predicts that the traces have squares equal to 0,1,4 and $\frac{3 \pm \sqrt{5}}{2}$.
+
+When $r = 2$, we have
+\begin{itemize}
+\item $\dbar = 1 \implies \frac{r}{\gcd(r,\dbar)} = 2 \implies d = 4 \implies \tr = \pm 2i$
+\item $\dbar = 2 \implies \frac{r}{\gcd(r,\dbar)} = 1 \implies d = 2 \text{~or~} 4 \implies \tr = 0, \pm 2i$
+\item $\dbar = 3 \implies \frac{r}{\gcd(r,\dbar)} = 2 \implies d = 12 \implies \tr = \pm i$
+\item $\dbar = 5 \implies \frac{r}{\gcd(r,\dbar)} = 2 \implies d = 20 \implies \tr = \pm \sqrt{\frac{-3 \pm \sqrt{5}}{2}}$.
+\end{itemize}
+Thus, the possible traces are $0, \pm i, \pm 2i, \pm \sqrt{\frac{-3 \pm \sqrt{5}}{2}}$.  This exactly matches Serre would predicts that the traces have squares equal to 0,-1,-4, and $\frac{-3 \pm \sqrt{5}}{2}$.  Great!
+
+\end{document}
