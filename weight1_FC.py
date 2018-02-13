@@ -19,6 +19,13 @@ from sage.structure.sage_object import SageObject
 class weight_one_FC(SageObject):
 	def __init__(self):
 		self._minpolys = {}
+		self._pchi = {}
+
+	def pchi(self,p,chi):
+		return self._pchi[(p,chi)]
+
+	def set_pchi(self,p,chi,pchi):
+		self._pchi[(p,chi)] = pchi
 
 	def keys(self):
 		return self._minpolys.keys()
@@ -38,7 +45,6 @@ class weight_one_FC(SageObject):
 
 	def compute_minpolys(self,key):		
 		ord = key[0]
-		val = key[1]
 		Qchi = CyclotomicField(ord)
 		z = Qchi.gen()
 		R = PolynomialRing(Qchi,'x')
@@ -46,6 +52,7 @@ class weight_one_FC(SageObject):
 
 		if len(key) == 2:
 			### at primes not dividing the level
+			val = key[1]
 			ans = []
 
 			## c = 0
@@ -64,7 +71,7 @@ class weight_one_FC(SageObject):
 			facts = f.factor()
 			for d in facts:
 				ans += [d[0]]
-		else:
+		elif len(key) == 3:
 			### at primes dividing the level (Formula is a_ell^{2d} = chi^{ell}(ell)^{2d})
 			non_ell_val = key[2]
 			ans = []
@@ -73,6 +80,9 @@ class weight_one_FC(SageObject):
 				facts = f.factor()
 				for d in facts:
 					ans += [d[0]]
+		else:
+			### at supercuspidal prime
+			ans = [x]
 
 		return list(set(ans))
 
@@ -85,10 +95,11 @@ class weight_one_FC(SageObject):
 		Nc = chi.conductor()
 		Nt = N / Nc
 
-		choose_prime_over_p(chi,p)
-		pchi = pp[(chi,p)]
+		pchi = self.pchi(p,chi)
 		kchi = pchi.residue_field()
 		Qchi = chi(1).parent()
+		if Qchi == QQ:
+			Qchi = CyclotomicField(2)
 
 		R = PolynomialRing(Qchi,'x')
 		x = R.gen()
@@ -102,15 +113,16 @@ class weight_one_FC(SageObject):
 		if ell == p and N % p !=0:
 			upper *= 2
 
-		if chi.modulus() % ell != 0:
-			polys = self[(chi.order(),chi(ell))]
-		elif Nt % ell != 0:
-			chi_non_ell = non_ell_part(chi,ell)
-			polys = self[(chi.order(),chi(ell),chi_non_ell(ell))]
-		elif g == xp:
-			return [x]
-		else:
-			return []
+		# if chi.modulus() % ell != 0:
+		# 	polys = self[(chi.order(),chi(ell))]
+		# elif Nt % ell != 0:
+		# 	chi_non_ell = non_ell_part(chi,ell)
+		# 	polys = self[(chi.order(),chi(ell),chi_non_ell(ell))]
+		# elif g == xp:
+		# 	return [x]
+		# else:
+		# 	return []
+		polys = self[make_key(chi,ell)]
 
 		### picking polys which (a) mod p are divisible by g
 		###						(b) whose degree is not so large that there will be more galois conjugates than upper
@@ -146,4 +158,13 @@ def non_ell_part(chi,ell):
 	else:
 		return prod(chis)
 
-	
+def make_key(chi,ell):
+	N = chi.modulus()
+	Nc = chi.conductor()
+	if N % ell != 0:
+		return (chi.order(),chi(ell))
+	elif valuation(N,ell) == valuation(Nc,ell):
+		chi_non_ell = non_ell_part(chi,ell)
+		return (chi.order(),chi(ell),chi_non_ell(ell))
+	else:
+		return (chi.order(),0,0,0)  ### hack here!

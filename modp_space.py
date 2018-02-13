@@ -58,8 +58,8 @@ def wt1_space_modp(p,chi,lower=0,verbose=False,sturm=None,log=None):
 
 
 def maximal_eigendoubled_Artin(chi,p,lower=0,sturm=None,log=None,verbose=False):
-	choose_prime_over_p(chi,p)
-	pchi = pp[(chi,p)]
+	pchi = choose_prime_over_p(chi,p)
+	FC.set_pchi(p,chi,pchi)
 
 	N = chi.modulus()
 	Nc = chi.conductor()					
@@ -232,12 +232,11 @@ def output(log,verbose,level,str):
 
 
 def choose_prime_over_p(chi,p):
-	if not pp.has_key((chi,p)):
-		Qchi = chi(1).parent()
-		if Qchi != QQ:
-			pp[(chi,p)] = Qchi.prime_above(p)
-		else:
-			pp[(chi,p)] = ideal(p)
+	Qchi = chi(1).parent()
+	if Qchi != QQ:
+		return Qchi.prime_above(p)
+	else:
+		return ideal(p)
 
 def ordinary_subspace(M,p,log=None,verbose=False):
 	output(log,verbose,3,"    Passing to ordinary subspace")

@@ -753,6 +753,7 @@ class weight_one_space(SageObject):
 		return True
 
 	def remove_old_and_CM(self,log=None,verbose=False):
+		###!!!! phi all messed up
 		if self.num_forms() == 0:
 			return None
 		sturm = STURM 
