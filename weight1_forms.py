@@ -86,10 +86,12 @@ class weight_one_form(SageObject):
 			if self._hecke.keys().count(q) > 0:
 				return self._hecke[q][i]
 			else:
-				#### THIS IS WRONG!!!
-				D = self.space()
-				self._hecke[q] = [D.hecke_polynomial(q)]
-				return self._hecke[q][i]
+				assert 0==1,"?"
+			# else:
+			# 	#### THIS IS WRONG!!!
+			# 	D = self.space()
+			# 	self._hecke[q] = [D.hecke_polynomial(q)]
+			# 	return self._hecke[q][i]
 
 	def space(self):
 		"""
@@ -360,13 +362,12 @@ class weight_one_form(SageObject):
 		K,phi = poly.splitting_field('a',map=true)
 		return K,phi
 
-	### returns the discriminant of the product of all min polys
+	### returns the product of the discriminants of all min polys
 	def disc(self):
-		poly = 1
+		d = 1
 		for q in self.primes():
-			poly *= self[q][0]
-		poly = square_free(poly)
-		return poly.discriminant().norm()
+			d *= self[q][0].discriminant().norm()
+		return d
 
 	def grab_eigens(self,Kf=None,sturm=None,verbose=false):		
 		t,pf,phibar,bool = self.space().grab_eigens(0,Kf=Kf,sturm=sturm,verbose=verbose)

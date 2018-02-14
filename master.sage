@@ -8,5 +8,5 @@ CM = load("DATA/CM_forms.1-300")
 FC = weight_one_FC()
 pp = {}
 exotic = {}
-STURM = 20
+STURM = 50
 

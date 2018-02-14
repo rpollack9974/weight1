@@ -1,15 +1,59 @@
+""" 
+global variables in use:
+------------------------
+FC = object which computes the Fourier coefficients of weight 1 exotic forms
+CM = q-expansions of CM forms currently taken from Buzzard-Lauder website
+exotic = precomputed exotic forms 
+STURM = bound used to determine how many Hecke operators to use.  
+		(This number should be MUCH smaller than the true Sturm bound.)
+"""
+
 class wt1(SageObject):
 	"""This is the main class of weight 1 forms
 
-	The following explained in the stored data in this class:
+	The following explains in the stored data in this class:
 
-	self._neben = nebentype character
+	self._neben = nebentype character (= chi)
+	self._Qchi = Q(chi)
 	self._CM = list of the CM forms (including oldforms) which have not yet been excluded
-				these forms can be excluded by 
-					(a) not looking "new" at level N -- i.e. a_ell non-zero for supercuspidal ell
-					(b) 
+				more precisely, each element of _CM is a 3-tuple (f,phi,m) where
+					f = q-expansion up to accuracy STURM (= global variable).  
+						Note STURM is not a true sturm bound!  It is much smaller.
+					phi = embedding of Q(chi) to K_f, the field of Fourier coefficients of f
+					m = multiplicity for which this q-expansion occurs in S_1(N,chi)
+						(note that multiplicity is caused by oldforms or because of the truncation of the q-expansion)
+
+				CM forms can be "excluded" by 
+					(a) not looking "new" at level N -- i.e. a_ell non-zero for ell which are supercuspidal for newforms
+					(b) not being of Artin-type at some p for which we computed the mod p modular symbols
+					(c) the CM forms are fully explained by a mod p computation:
+						this last case occurs 2 ways: one is simply that in some mod p space we see exact dimension
+						predicted by this CM form.  The second uses the fact that for p>2 one cannot have a congruence
+						between an exotic form and a CM form.  To invoke this facft we must compute up to the true
+						Sturm bound in order to prove the congruence.
+	self._old_exotic = old exotic forms (not yet coded here)
+	self._upper = upper bound given from the mod p computations
+	self._lower = lower bound coming from CM forms
+	self._spaces = this is a list of "weight_one_space"s.  One for each mod p computation done.  See weight1_forms.py.
+					briefly, the main data for each such space is a dictionary which sends ell to a list of irreducible
+					polynomials over Q(chi) which could be the minimum polynomial of a_ell(f) for f some new exotic form
+	self._locally_constrained = this is a boolean which is set to True if there is a local reason why no new exotic 
+								weight 1 form can exist in S_1(N,chi).  The three reasons we use are:
+									(0) the character chi is even
+									(1) if there is a Steinberg prime.  That is a prime q||N such that q does NOT divide
+										the conductor of chi.  If there is such a prime then, the local Galois repn
+										at q has infinite image and thus is incompatible with a weight 1 form
+									(2) if there is a ramified principal series prime q|N (e.g. q divides the conductor
+										of chi with the same multiplcity it divides N) such that the q-primary part
+										of chi has order > 5.  This is inconsistent with the shape of the local
+										representation at q for an A4, S4 or A5 form.
+	self._bad_primes = list of primes which give a local obstruction
+	self._steinberg_primes = list of steinberg primes
+	self._bad_rps_primes = list of ramified principal series primes giving local obstruction
+	self._fully_computed = boolean which is set to true once the space is fully computed
+	self._exotic_forms = list of exotic forms.  precisely, ordered pairs (f,phi) where phi:Q(chi)-->K_f
 	"""
-	def __init__(self,chi):
+	def __init__(self,chi,compute=True):
 		self._neben = chi
 		self._Qchi = chi.base_ring()
 		if self._Qchi == QQ:
@@ -23,16 +67,17 @@ class wt1(SageObject):
 
 		self._spaces = []
 
-		self._locally_constained = False
+		self._locally_constrained = False
 		self._bad_primes = []
 		self._steinberg_primes = []
 		self._bad_rps_primes = []
 
 		self._fully_computed = False
 
-		self._forms = []
+		self._exotic_forms = []
 
-		self.compute_space()
+		if compute:
+			self.compute_space()
 
 	def __repr__(self):
 		print "Space is fully computed:",self.is_fully_computed()
@@ -52,12 +97,11 @@ class wt1(SageObject):
 
 	### THIS IS THE MAIN FUNCTION
 	def compute_space(self):
+		"""Computes the space of new exotic weight 1 forms"""
 		self.check_local_constraints()
 		if self.is_fully_computed():
 			return
 
-		# don't want to recursively compute old exotic here as info (of none there) might come for free
-		# so we only count the number of already pre-computed forms (if any)
 		self.compute_lower_bound_from_old_exotic()
 		self.compute_CM()
 
@@ -66,18 +110,18 @@ class wt1(SageObject):
 			return
 
 		self.excise_CM_forms()
-		self.compute_bounds()
 		if self.is_fully_computed():
 			return
 
 		self.excise_old_exotic_forms()
-		self.compute_bounds()
 		if self.is_fully_computed():
 			return
 
-		self.verify_remaining_forms()
-
-		assert 0==1,str(self)
+		while not self.verify_remaining_forms():
+			self.use_new_prime()
+			if self.is_fully_computed():
+				return
+		return 
 
 	def Qchi(self):
 		return self._Qchi
@@ -162,10 +206,8 @@ class wt1(SageObject):
 		S = self.unique_space()
 		unramified_prime = true
 		for f in S:
+			d = f.disc()
 			bool = false
-			d = 1
-			for q in f.primes():
-				d *= f[q][0].discriminant().norm()
 			for q in primes_used:
 				bool = bool or d % q != 0
 			unramified_prime = unramified_prime and bool
@@ -199,6 +241,12 @@ class wt1(SageObject):
 	def add_old_exotic(self,f):
 		self._old_exotic += [f]
 
+	def exotic_forms(self):
+		return self._exotic_forms
+
+	def add_exotic_form(self,fq,phi):
+		self._exotic_forms += [[fq,phi]]
+
 	def is_fully_computed(self):
 		return self._fully_computed
 
@@ -206,10 +254,10 @@ class wt1(SageObject):
 		self._fully_computed = True
 
 	def is_locally_constrained(self):
-		return self._locally_constained
+		return self._locally_constrained
 
-	def set_to_locally_constained(self):
-		self._locally_constained = True
+	def set_to_locally_constrained(self):
+		self._locally_constrained = True
 		self._fully_computed = True
 
 	def bad_primes(self):
@@ -233,11 +281,8 @@ class wt1(SageObject):
 		self._bad_rps_primes += [ell]
 		self.add_bad_prime(ell)
 
-	def forms(self):
-		return self._forms
-
 	def num_forms(self):
-		return len(self.forms())
+		return len(self.exotic_forms())
 
 	def compute_lower_bound(self):
 		return self.set_lower_bound(len(self.CM()))
@@ -247,27 +292,38 @@ class wt1(SageObject):
 		self.compute_lower_bound()
 
 
-	### checks to see:
-	###		(a) whether or not nebentype is odd
-	###		(b) if there are any Steinberg primes
-	###		(c) if there are any bad ramified principal series primes
 	def check_local_constraints(self):
+		"""checks that there are no local obstructions to weight 1 exotic forms existing
+
+		checks to see:
+			(a) whether or not nebentype is odd
+			(b) if there are any Steinberg primes
+			(c) if there are any bad ramified principal series primes
+		if any of these condtions are met, self is set to locally constrained and the offending
+		primes are added to bad_primes, steinberg_primes and/or bad_rps_primes	
+		"""
 		chi = self.neben()
 		if chi(-1) == 1:			
 			self.add_bad_prime(Infinity)
-			self.set_to_locally_constained()
+			self.set_to_locally_constrained()
 
 		N = chi.modulus()
 		for ell in prime_divisors(N):
 			if steinberg(chi,ell):
 				self.add_steinberg_prime(ell)
-				self.set_to_locally_constained()
+				self.set_to_locally_constrained()
 			if bad_rps(chi,ell):
 				self.add_bad_rps_prime(ell)
-				self.set_to_locally_constained()
+				self.set_to_locally_constrained()
 
-	### computes dimension of old_exotic forms from data stored in exotic -- no extra computations done
 	def compute_lower_bound_from_old_exotic(self):
+		"""runs through previously computed (old) exotic forms and computes the dimension of their contribution
+
+		Note that we do not recursively compute these old forms (just their dimension).  Such a computaiton may be 
+		unnecessary as the mod p  computations might directly prove that no such forms exist.  
+		So we wait until later in the computation to recursively compute these spaces if they haven't already been 
+		precomputed. (Such data is stored in the global variable exotic.)
+		"""
 		chi = self.neben()
 		N = chi.modulus()
 		Nc = chi.conductor()
@@ -284,6 +340,13 @@ class wt1(SageObject):
 		self.set_lower_bound(self.lower_bound()+lb)
 
 	def compute_CM(self):
+		"""Computes all of the CM forms which contribute to S_1(N,chi)^new
+
+		This function adds this CM data in the form (f,phi,m) where:
+			f = q-expansion of CM form up to STURM
+			phi = embedding from Q(chi) to K_f
+			m = dimension of the generalized eigenspace corresponding to this CM form 
+		"""
 		print "Computing CM"
 		chi = self.neben()
 		N = chi.modulus()
@@ -322,7 +385,10 @@ class wt1(SageObject):
 
 		return ZZ(p)
 
-	def use_new_prime(self,p,log=None,verbose=False):
+	def use_new_prime(self,p=None,log=None,verbose=False):
+		if p == None:
+			p = self.next_good_prime()
+		print "using p=",p
 		sturm = STURM
 		chi = self.neben()
 		N = chi.modulus()
@@ -342,6 +408,19 @@ class wt1(SageObject):
 		return 
 
 	def cut_down_to_unique(self,log=None,verbose=false):
+		"""collects various mod p information until the minimal polynomials of FC are all uniquely determined
+
+		This function computes the mod p modular symbols in weight p for various p.  For each p, a space of 
+		"potential"	weight 1 forms are created.  These are dictionaries which send a prime ell (< STURM) to 
+		a list of minimal polynomials over Q(chi) which are possible minimal polynomial of a_ell(f) for some
+		new exotic weight 1 form.  This information is stored in the "spaces" field.
+
+		Primes p are used until the following is satisfied:
+			(1) there is at least one space where all of the minimal polynomials are uniquely determined
+			(2) for each such uniquely determined form, there such be a prime which does not divide the 
+				discriminant of any of the forms minimal polynomials.  This allows for us to uniquely lift
+				the mod p reduction of a root of such a polynoial
+		"""
 		print "Cutting down to unique"
 		chi = self.neben()
 		sturm = STURM
@@ -356,7 +435,7 @@ class wt1(SageObject):
 		while (not self.is_fully_computed()) and (not self.is_unique() or not self.has_unramified_prime()):
 			p = self.next_good_prime()
 #			print "using",p
-			self.use_new_prime(p,log=log,verbose=verbose)
+			self.use_new_prime(p=p,log=log,verbose=verbose)
 			self.remove_non_Artin_CM(p)
 #			print self.spaces()
 		return
@@ -373,9 +452,26 @@ class wt1(SageObject):
 
 	def excise_old_exotic_forms(self):
 		##!!
+		self.compute_bounds()
 		return
 
 	def excise_CM_forms(self,log=None,verbose=False):
+		"""This functions removes the potential weight 1 forms which arise from CM forms
+
+		Let f be a CM form which contributes a degree d subspace to mod p modular symbols in weight p.
+		(Here f contributes via all of its Galois conjugates and by a possible "doubling" when (p,N)=1.)
+		If we see that there is at most a d dimensional space with the mod p Hecke-eigenvalues of f,
+		we are in good shape, and we can just throw away these Hecke-eigensystems.
+
+		However, if in the mod p space, we are seeking a D dimensional space with D > d, then this could
+		happen for two reasons:
+			(a) there are additional weight p forms which are congruent to this CM form;
+			(b) we haven't computed enough Hecke-eigenvalues yet and in fact the D dimensional space
+				breaks up into a CM piece and a non-CM piece.
+		When p > 2 and we are in case (a), all is fine as exotic forms do not admit congruences to CM forms. 
+		In particular, these extra forms in weight p cannot arise form weight 1.  However, we must eliminate
+		case (b).  We do this by computing all the way up to the true Sturm bound
+		"""
 		print "bounds don't meet: now removing CM from"
 		sturm = STURM 
 		chi = self.neben()
@@ -406,20 +502,21 @@ class wt1(SageObject):
 							hp.pop(p)
 						modp_mult = S.hecke_multiplicity(h)
 						dp = max_degree(hp)
-						print "have",modp_mult,"copies of this form and am expecting",CM_mult*dp
+						print "have",modp_mult,"copies of this form and am expecting at least",CM_mult*dp
 						assert modp_mult >= dp * CM_mult,"CM/old not found!!"+str(f)+str(self)
 						if modp_mult == CM_mult * dp:
 							### multiplicity exactly correct so we can throw away these CM forms safely
 							print "can safely remove the CM/old form "+str(f)
 							output(log,verbose,3,"can safely remove the CM/old form "+str(f))
-							self.fully_excise_CM_form(h)
+							self.fully_excise_form(h,CM=true)
 							excised = true
 							break
 				if not excised:
-					print "not enough --- checking up to strong_sturm for CM/old with p =",p
+					print "too many --- checking up to strong_sturm for CM/old with p =",p
 					### there are potentially forms congruent to this CM form in weight p which don't come from weight 1
 					### but we now are careful and check to the sturm bound to prove this congruence
 					p,bool = self.good_CM_cut_out_prime()
+					print "using p =",p
 					S = self.space_at_p(p)
 					assert bool,"need to program when there is no good prime here"
 #					e = scaling(N,p)
@@ -429,15 +526,19 @@ class wt1(SageObject):
 					dp = max_degree(hp)
 					modp_mult = self.true_modp_mult(p,hp)
 					a = self.generalized_eigenspace_dimension(p,f,phi,modp_mult)
+					print "(a,dp,modp_mult) =",(a,dp,modp_mult)
 					assert a * dp <= modp_mult, "something wrong here"
 					if a * dp == modp_mult:
 						print "Found that the",a*dp,"CM forms fill up the",modp_mult,"-dimensional generalized eigenspace"
 						print "after careful check removing the CM/old form "+str(f)
 					 	output(log,verbose,3,"after careful check removing the CM/old form "+str(f))
-					 	self.fully_excise_CM_form(h)
+					 	self.fully_excise_form(h,CM=true)
 					else:
 					 	print "couldn't remove the CM/old form",f
 					 	success = false
+		assert success,"failed in CM removal"
+		print "CM removed"
+		self.compute_bounds()
 		return success
 
 	def good_CM_cut_out_prime(self):
@@ -451,6 +552,7 @@ class wt1(SageObject):
 			return min(ps),true
 
 	def true_modp_mult(self,p,hp):
+		print "true_modp_mult",p,hp
 		chi = self.neben()
 		pchi = FC.pchi(p,chi)
 		kchi = pchi.residue_field()
@@ -459,6 +561,7 @@ class wt1(SageObject):
 		for q in hp.keys():
 			Tq = M.hecke_operator(q)
 			M = (R(hp[q][0]).substitute(Tq)**M.dimension()).kernel()
+		M = ordinary_subspace(M,p)
 		return M.dimension()
 
 	def generalized_eigenspace_dimension(self,p,f,phi,modp_mult):
@@ -511,12 +614,13 @@ class wt1(SageObject):
 				alpha = hom_to_poly(pibar_p,phibar_lf).roots()[0][0]
 				M = ((Tp-alpha)**(2*modp_mult)).kernel()
 				a = M.dimension()
+		else:
+			a = M.dimension()
 
 		return a
 
 	### checks if the modular form (actually 3-tuple (form,phi,multiplicity)) is 
 	def is_non_Artin(self,f,p):
-		print "CHecking if",f[0],"is Artin at p =",p
 		chi = self.neben()
 		pchi = FC.pchi(p,chi)
 		phi = f[1]
@@ -526,11 +630,8 @@ class wt1(SageObject):
 			P = minpoly_over(f[ell],chi.base_ring(),phi)
 			kchi = pchi.residue_field()
 			R = PolynomialRing(kchi,'x')
-			print ell,":",gcd(R(prod(FC[make_key(chi,ell)])),R(P))
 			if gcd(R(prod(FC[make_key(chi,ell)])),R(P)) == 1:
-				print "non-artin"
 				return True
-		print "artin"
 		return False
 
 
@@ -544,41 +645,26 @@ class wt1(SageObject):
 		return ans
 
 	## removes h from all unique spaces and from CM field
-	def fully_excise_CM_form(self,h):
+	def fully_excise_form(self,h,CM=false):
+		print "in fully excise with",h
 		for S in self.spaces():
 			if S.unique():
 				while S.hecke_multiplicity(h) > 0:
 					S.remove_hecke(h)
-		new_list = []
-		for F in self.CM():
-			f = F[0]
-			phi = F[1]
-			hf = {}
-			for q in h.keys():
-				hf[q] = [minpoly_over(f[q],self.Qchi(),phi)]
-			if hf != h:
-				new_list += [F]
-		self.set_CM(new_list)
+		if CM:
+			new_list = []
+			for F in self.CM():
+				f = F[0]
+				phi = F[1]
+				hf = {}
+				for q in h.keys():
+					hf[q] = [minpoly_over(f[q],self.Qchi(),phi)]
+				if hf != h:
+					new_list += [F]
+			self.set_CM(new_list)
 		return 
 
-	def test_form(self,f):
-		p = self.good_prime_for_sturm(f)
-		chi = self.neben()
-		N = chi.modulus()
-		Qchi = self.Qchi()
-		z = Qchi.gen()
-		strong_sturm = ceil(Gamma0(N).index() / 3)  ### CHECK THIS!!!!
-		M = f.space()[0]
-		kchi = M.base_ring()
-		Kf,phi = f.FC_field()
-		R = PolynomialRing(Kf,'x')
-		pf = Kf.prime_above(p)
-		kf = pf.residue_field()
-		H = Hom(kchi,kf)
-		found = false
-
-
-	def good_prime_for_sturm(self,f):
+	def good_form_for_qexp(self,f):
 		d = f.disc()
 		found = false
 		for S in self.spaces():
@@ -586,15 +672,61 @@ class wt1(SageObject):
 				found = true
 				break
 		assert found,"not found?"
-		return S.p()
-
+		for g in S:
+			if g == f:
+				return g
 
 	def verify_remaining_forms(self):
-		S = self.unique_space()
-		for f in S:
-			fq = self.form_qexp(f)
-			self.verify(fq)
+		"""q-expansions of each remaining form computes, squared and scaled by E_1(chi^(-1)) to test if true wt 1
 
+		At this point, all of the CM and old exotic forms have been removed.  The remaining forms we test using the
+		"square" and "scale by E_1(chi)" trick.  
+
+		First we compute the forms q-expansion to a high Sturm bound.  This might prove that the form doesn't exist 
+		(e.g. is not Artin type or not doubled).  This might also take several primes to do.  If this works though,
+		we then scale by E_1(chi) and check that we have a form in S_2(chi^2).  If so, we square and check that
+		we again have a form in S_2(chi^2).  These two facts proves the form is a bonafide weight 1 form.
+
+		We then add this form and all of its Galois conjugates over Q(chi) to the "exotic_forms" field.
+		"""
+		S = self.unique_space()
+		need_more_primes = false
+		done = true
+		for f in S:
+			g = self.good_form_for_qexp(f)
+			fq,phi,passed,need_more_primes = self.form_qexp(g,verbose=5)
+			if need_more_primes:
+				done = false
+			if not passed:
+				self.fully_excise_form(f.hecke())
+			elif not need_more_primes:
+				bool = self.verify(fq,phi)
+				if bool:
+					fqs = galois_conjugates(fq,self.neben(),phi)
+					for data in fqs:
+						self.add_exotic_form(data[0],data[1])
+				##!! need to check multiplicity here --- this is cheating!
+				self.fully_excise_form(f.hecke())
+		self.compute_bounds()
+		return done
+
+	def verify(self,fq,phi):
+		chi = self.neben()
+		sturm = ceil(Gamma0(chi.modulus()).index()/3) ##! IS THIS RIGHT????
+
+		S = ModularSymbols(chi**2,2,1).cuspidal_subspace()
+		B = S.q_expansion_basis(sturm)
+		g = fq * E1chi(chi,phi,sturm)
+		bool = is_in(g,S,phi,sturm)
+		print "f E_1(chi) test is: "+str(bool)
+		if bool:
+			bool = is_in(fq**2,S,phi,sturm)
+			print "f^2 test is: "+str(bool)
+			print "Weight 1 form: "+str(fq)
+
+		return bool
+
+	
 	def form_qexp(self,f,log=None,verbose=False):
 		fs = []
 		for S in self.spaces():
@@ -633,8 +765,9 @@ class wt1(SageObject):
 			e = 2
 		else:
 			e = 1
+		##!! why doesn't this go on forever??
 		while W.dimension() > e:		
-			if q != p:
+			if q != p or N % p == 0:
 				output(log,verbose,2,"-in form_qexp cutting down to 2-dimensional space with q="+str(q))
 				T = M.hecke_operator(q)
 				A = T.matrix()
@@ -648,7 +781,7 @@ class wt1(SageObject):
 		fail = (W.dimension() < 2) and (N % p != 0)  
 		if fail:
 			print "failed in ???!"
-			return 0,0,not fail,need_more_primes,chi
+			return 0,0,not fail,need_more_primes
 
 		if not fail:
 			output(log,verbose,2,"--finished cutting down to 2-dimensional space.  Computing e-vals now")
@@ -675,7 +808,7 @@ class wt1(SageObject):
 
 				hecke[q] = FC.possible_Artin_polys(minpoly_over(evs_modp[q],kchi,phibar),chi,q,p,upper=self.upper_bound())
 				if len(hecke[q]) == 0:
-					return 0,0,false,need_more_primes,chi
+					return 0,0,false,need_more_primes
 
 	#			print q,hecke[q]
 				if len(hecke[q]) > 1:
@@ -724,7 +857,7 @@ class wt1(SageObject):
 
 	#			print "ans:",hecke[q]
 				if fail:
-					return 0,0,not fail,need_more_primes,chi
+					return 0,0,not fail,need_more_primes
 
 				if len(hecke[q]) != 1:
 					need_more_primes = True
@@ -747,10 +880,10 @@ class wt1(SageObject):
 				for n in range(1,strong_sturm):
 					ans += an(evs,n,chi,phi) * q**n
 
-				return ans,phi,not fail,need_more_primes,chi
+				return ans,phi,not fail,need_more_primes
 			else:
 				output(log,verbose,1,"Min polys not uniquely determined: need to compute with more primes")
-				return 0,0,not fail,need_more_primes,chi
+				return 0,0,not fail,need_more_primes
 
 
 #--------------------
@@ -860,3 +993,89 @@ def scaling(N,p):
 		return 2
 	else:
 		return 1
+
+# q-expansion of E_1(chi)
+def E1chi(chi,phi,acc):
+	L = phi(chi(1)).parent()
+	R = PolynomialRing(L,'q')
+	q = R.gens()[0]
+
+	ans = R(-phi(chi.bernoulli(1))/2)
+
+	for n in range(1,acc):
+		coef = 0
+		for d in divisors(n):
+			coef += phi(chi(d))
+		ans += coef * q**n
+
+	return ans
+
+#	return phi(-chi.bernoulli(1)/2) + form_q_exp(d,acc,chi)
+
+## is the q-expansion f in the space S
+def is_in(f,S,phi,acc):
+	L = f.parent().base_ring()
+#	K = S.base_ring()
+#	phi = Hom(K,L).an_element()
+	q = f.parent().gens()[0]
+
+	assert acc > S.dimension()+2,"not enough accuracy"
+
+	B = S.q_expansion_basis(acc)
+
+	C = []
+	for b in B:
+		C += [sum([phi(b.list()[j]) * q**j for j in range(len(b.list()))])]
+
+
+
+	RR = PowerSeriesRing(L,acc,'q')
+
+	bool = (f-sum([C[n]*f[C[n].valuation()] for n in range(len(B))])).truncate(acc) == 0
+	if not bool:
+		print (f-sum([C[n]*f[C[n].valuation()] for n in range(len(B))])).truncate(acc)
+
+	return bool
+
+
+def galois_conjugates(fq,chi,phi):
+	ans = []
+	K = fq.base_ring()
+	R = PowerSeriesRing(K,'q')
+	q = R.gen()
+	GG = K.galois_group()
+	for sigma in list(GG):
+		if fixes_chi(sigma,chi,phi):
+			t = 0
+			for n in range(fq.degree()):
+				t += sigma(fq[n]) * q**n
+			ans += [(t,phi)]
+	return ans
+
+def fixes_chi(sigma,chi,phi):
+	vals = chi.values_on_gens()
+	bool = true
+	for v in vals:
+		bool = bool and sigma(phi(v)) == phi(v)
+	return bool
+
+
+def an(evs,n,chi,phi):
+	if n == 1:
+		return 1
+	else:
+		fact = ZZ(n).factor()
+		if len(fact) > 1:
+			ans = 1
+			for f in fact:
+				q = f[0]
+				e = f[1]
+				ans *= an(evs,q**e,chi,phi)
+			return ans
+		else:
+			q = fact[0][0]	
+			e = fact[0][1]
+			if e == 1:
+				return evs[q]
+			else:
+				return an(evs,q**(e-1),chi,phi) * evs[q] - phi(chi(q)) * an(evs,q**(e-2),chi,phi)
