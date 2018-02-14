@@ -3,7 +3,7 @@ global variables in use:
 ------------------------
 FC = object which computes the Fourier coefficients of weight 1 exotic forms
 CM = q-expansions of CM forms currently taken from Buzzard-Lauder website
-exotic = precomputed exotic forms 
+EXOTIC = precomputed exotic forms 
 STURM = bound used to determine how many Hecke operators to use.  
 		(This number should be MUCH smaller than the true Sturm bound.)
 """
@@ -34,7 +34,7 @@ class wt1(SageObject):
 	self._old_exotic = old exotic forms (not yet coded here)
 	self._upper = upper bound given from the mod p computations
 	self._lower = lower bound coming from CM forms
-	self._spaces = this is a list of "weight_one_space"s.  One for each mod p computation done.  See weight1_forms.py.
+	self._spaces = this is a list of "weight_one_space"s; one for each mod p computation done.  See weight1_forms.py.
 					briefly, the main data for each such space is a dictionary which sends ell to a list of irreducible
 					polynomials over Q(chi) which could be the minimum polynomial of a_ell(f) for f some new exotic form
 	self._locally_constrained = this is a boolean which is set to True if there is a local reason why no new exotic 
@@ -52,8 +52,9 @@ class wt1(SageObject):
 	self._bad_rps_primes = list of ramified principal series primes giving local obstruction
 	self._fully_computed = boolean which is set to true once the space is fully computed
 	self._exotic_forms = list of exotic forms.  precisely, ordered pairs (f,phi) where phi:Q(chi)-->K_f
+	self._verbose = a number 0,1,2,3...   The higher the number mthe more info is displayed.
 	"""
-	def __init__(self,chi,compute=True):
+	def __init__(self,chi,compute=True,verbose=0):
 		self._neben = chi
 		self._Qchi = chi.base_ring()
 		if self._Qchi == QQ:
@@ -76,6 +77,8 @@ class wt1(SageObject):
 
 		self._exotic_forms = []
 
+		self._verbose = verbose
+
 		if compute:
 			self.compute_space()
 
@@ -87,7 +90,7 @@ class wt1(SageObject):
 			print "   Bad RPS primes:",self.bad_rps_primes()
 			print "   All bad primes:",self.bad_primes()
 		if self.is_fully_computed():
-			print "There are",self.num_forms(),"form(s)."
+			print "There are",self.num_exotic_forms(),"exotic form(s)."
 		else:
 			print "Not fully computed"
 			print "Lower bound =",self.lower_bound()
@@ -102,77 +105,111 @@ class wt1(SageObject):
 		if self.is_fully_computed():
 			return
 
-		self.compute_lower_bound_from_old_exotic()
+		self.compute_old_exotic(recursive=false)
 		self.compute_CM()
+
+		self.output(5,"Lower bound: "+str(self.lower_bound()))
 
 		self.cut_down_to_unique()
 		if self.is_fully_computed():
-			return
+			return 
 
-		self.excise_CM_forms()
+		self.excise_lower_bound_forms(tag="CM")
 		if self.is_fully_computed():
 			return
 
-		self.excise_old_exotic_forms()
+		self.compute_old_exotic()
+		self.excise_lower_bound_forms(tag="old_exotic")
 		if self.is_fully_computed():
 			return
 
 		while not self.verify_remaining_forms():
 			self.use_new_prime()
 			if self.is_fully_computed():
-				return
+				break
+
+		self.add_data_to_exotic()
+		assert self.is_fully_computed()
 		return 
 
 	def Qchi(self):
+		"""Returns the field Q(chi) where chi is the nebentype of the space"""
 		return self._Qchi
 
 	def neben(self):
+		"""Returns the nebentype of the space"""
 		return self._neben
 
 	def upper_bound(self):
+		"""Returns the current upper bound on the weight 1 forms not yet excluded"""
 		return self._upper
 
 	def lower_bound(self):
+		"""Returns the current lower bound from CM forms and old/exotic forms not yet excluded"""
 		return self._lower
 
 	def set_upper_bound(self,U):
+		"""sets the upper bound to U"""
 		self._upper = U
 		if self.upper_bound() == self.lower_bound():
 			self.set_to_fully_computed()
 
 	def set_lower_bound(self,L):
+		"""sets the lower bound to L"""
 		self._lower = L
 		if self.upper_bound() == self.lower_bound():
 			self.set_to_fully_computed()
 
+	def verbose_level(self):
+		"""returns the current verbose level of the space"""
+		return self._verbose
+
+	def set_verbose_level(self,r):
+		"""sets the verbose level to r"""
+		self._verbose = r
+
 #####FUNCTIONS ABOUT SPACES FIELD
 	def space(self,i):
+		"""returns the i-th space computed from mod p data"""
 		return self._spaces[i]
 
 	def spaces(self):
+		"""returns all of the spaces computed via mod p data"""
 		return self._spaces
 
 	def set_spaces(self,spaces):
+		"""sets the spaces record to spaces"""
 		self._spaces = spaces
 		self.compute_bounds()
 
 	def add_space(self,S):
+		"""adds the space S to the spaces record"""
 		self._spaces += [S]
 
 	def replace_space(self,S,i):
+		"""changes the i-th space to S"""
 		self._spaces[i] = S
 
 	def num_spaces(self):
+		"""returns the number of spaces already computed"""
 		return len(self.spaces())
 
-	### true if there exists a space with min polys uniquely determined
 	def is_unique(self):
+		"""boolean which is true is there is at least one space all of whose min polys are uniquely determined
+
+		A space is a collection of dictionaries which send primes ell to a list of polynomials which are irreducible 
+		over Q(chi) and which could be the minimal polynomial of a_ell the e_ll-th Fourier coefficient of a weight 1 form
+
+		is_unique returns true when there is at least one space where all of the dictionaries have all of there values
+		as lists of length 1 (e.g. the min poly is uniquely determined)
+		"""
 		unique = false
 		for S in self.spaces():
 			unique = unique or S.unique()
 		return unique
 
 	def unique_space(self):
+		"""returns one unique space which was already computed"""
 		assert self.is_unique(),"no unique space here!"
 		for S in self.spaces():
 			if S.unique():
@@ -181,6 +218,12 @@ class wt1(SageObject):
 	### if not all minpolys are unique in any space, just return the minimum number of forms in any space
 	### if there is some space with a unique min polys, then first minimal multiplicity by form across unique spaces
 	def compute_upper_bound(self):
+		"""computed the upper bound from the current information in the spaces record
+
+		When there is no unique space, this returns the minimum number of forms in any space
+		When there is at least one unique space, this returns the sum over all forms f of that unique space of the 
+		minimum multiplicity of f over all unique spaces
+		"""
 		U = min([S.num_forms() for S in self.spaces()])
 		if not self.is_unique():
 			self.set_upper_bound(U)
@@ -202,6 +245,11 @@ class wt1(SageObject):
 				return
 
 	def has_unramified_prime(self):
+		"""boolean: true if there is at least one prime p which does not divide the disc of any min poly in a unique space
+
+		When the discriminant of a polynomial is not divisible by p, then the roots of this polynomial are determined
+		by their reduction mod p.  We need such a prime to be able to lift from char p to char 0.		
+		"""
 		primes_used = self.primes_used()
 		S = self.unique_space()
 		unramified_prime = true
@@ -214,6 +262,7 @@ class wt1(SageObject):
 		return unramified_prime
 
 	def space_at_p(self,p):
+		"""returns space computed with prime p"""
 		primes_used = self.primes_used()
 		assert primes_used.count(p) > 0,"mod "+str(p)+" space not yet computed!"
 
@@ -222,72 +271,123 @@ class wt1(SageObject):
 				break
 		return S
 
+	def primes_used(self):
+		"""returns the list of primes used so far in mod p computations"""
+		return [S.p() for S in self.spaces()]
+
 #######################
 	def CM(self):
+		"""returns list of CM forms not yet excluded
+
+		A CM form is stored as a 3-tuple (f,phi,m) where f is the q-expansion (up to some bound B),
+		phi is a map from Q(chi) to K_f and m is the multiplicity of this q-expansion in our
+		weight 1 space
+		"""
 		return self._CM
 
 	def old_exotic(self):
+		"""returns list of old exotic forms not yet excluded
+
+		An old exotic form is stored as a 3-tuple (f,phi,m) where f is the q-expansion (up to some bound B),
+		phi is a map from Q(chi) to K_f and m is the multiplicity of this q-expansion in our
+		weight 1 space
+		"""
 		return self._old_exotic
 
 	def add_CM(self,f):
+		"""adds the form f to the CM data"""
 		self._CM += [f]
 
 	def remove_CM(self,f):
+		"""removes the form f from the CM data"""
 		self._CM.remove(f)
 
-	def set_CM(self,list_of_CM):
-		self._CM = list_of_CM
+	def set_CM(self,list):
+		"""sets the CM data equal to list"""
+		self._CM = list
 
 	def add_old_exotic(self,f):
+		"""adds the form f to the old exotic data"""
 		self._old_exotic += [f]
 
+	def set_old_exotic(self,list):
+		"""sets the old exotic data equal to list"""
+		self._old_exotic = list
+
+	def clear_old_exotic(self):
+		"""deletes all old exotic forms"""
+		self._old_exotic = []
+
 	def exotic_forms(self):
+		"""returns the list of exotic forms computed
+
+		each element of the list is a 2-tuple of the form (f,phi) for phi:Q(chi)-->K_f
+		"""
 		return self._exotic_forms
 
-	def add_exotic_form(self,fq,phi):
-		self._exotic_forms += [[fq,phi]]
+	def add_exotic_form(self,f):
+		"""adds the form f to the exotic form data"""
+		self._exotic_forms += [f]
 
 	def is_fully_computed(self):
+		"""returns the boolean on whether or not the space has been fully computed"""
 		return self._fully_computed
 
 	def set_to_fully_computed(self):
+		"""sets the status of the space to fully computed and records the exotic form info to EXOTIC"""
+		self.add_data_to_exotic()
 		self._fully_computed = True
 
 	def is_locally_constrained(self):
+		"""returns the boolean on whether or not there is a local obstruction for a new exotic form"""
 		return self._locally_constrained
 
 	def set_to_locally_constrained(self):
+		"""sets the status of the space to locally constrained and thus to fully computed"""
 		self._locally_constrained = True
 		self._fully_computed = True
 
 	def bad_primes(self):
+		"""returns primes giving a local obstruction (including Infinity)"""
 		return self._bad_primes
 
 	def add_bad_prime(self,ell):
+		"""adds ell to the list of bad primes"""
 		self._bad_primes += [ell]
 
 	def steinberg_primes(self):
+		"""returns the list of steinberg primes -- if non-empty the space is locall constrained"""
 		return self._steinberg_primes
 
 	def add_steinberg_prime(self,ell):
+		"""adds ell to the list of steinberg primes"""
 		self._steinberg_primes += [ell]
 		self.add_bad_prime(ell)
 
-	### rps = ramified principal series; bad = order of character at prime > 5
 	def bad_rps_primes(self):
+		"""returns the bad ramified principal series primes
+
+		These are the primes ell which divide the level, which do not divide the level over the conductor of chi,
+		and such that the ell-primary part of chi has order > 5.  The existence of such primes locally constrains
+		the space.
+		"""
 		return self._bad_rps_primes
 
 	def add_bad_rps_prime(self,ell):
+		"""adds ell to the list of bad ramified principal series primes"""
 		self._bad_rps_primes += [ell]
 		self.add_bad_prime(ell)
 
-	def num_forms(self):
+	def num_exotic_forms(self):
+		"""returns the number of exotic forms computed so far"""
 		return len(self.exotic_forms())
 
 	def compute_lower_bound(self):
-		return self.set_lower_bound(len(self.CM()))
+		"""computes the lower bound arising from CM forms and old exotic forms"""
+		return self.set_lower_bound(len(self.CM())+len(self.old_exotic()))
 
 	def compute_bounds(self):
+		"""computes the current lower and upper bounds on the space of weight 1 forms"""
 		self.compute_upper_bound()
 		self.compute_lower_bound()
 
@@ -306,38 +406,58 @@ class wt1(SageObject):
 		if chi(-1) == 1:			
 			self.add_bad_prime(Infinity)
 			self.set_to_locally_constrained()
+			self.output(5,"Character is even")
 
 		N = chi.modulus()
 		for ell in prime_divisors(N):
 			if steinberg(chi,ell):
 				self.add_steinberg_prime(ell)
 				self.set_to_locally_constrained()
+				self.output(5,"Steinberg at "+str(ell))
 			if bad_rps(chi,ell):
 				self.add_bad_rps_prime(ell)
 				self.set_to_locally_constrained()
+				self.output(5,"Bad rps at "+str(ell))
 
-	def compute_lower_bound_from_old_exotic(self):
-		"""runs through previously computed (old) exotic forms and computes the dimension of their contribution
 
-		Note that we do not recursively compute these old forms (just their dimension).  Such a computaiton may be 
-		unnecessary as the mod p  computations might directly prove that no such forms exist.  
-		So we wait until later in the computation to recursively compute these spaces if they haven't already been 
-		precomputed. (Such data is stored in the global variable exotic.)
+	def compute_old_exotic(self,recursive=True):
+		"""Computes all of the old exotic forms which contribute to S_1(N,chi)^new and which are Artin at p for p used
+
+		This function adds this data in the form (f,phi,m) where:
+			f = q-expansion of form up to STURM
+			phi = embedding from Q(chi) to K_f
+			m = dimension of the generalized eigenspace corresponding to this CM form 
 		"""
+		self.output(5,"Computing old exotic forms")
+		self.clear_old_exotic()
 		chi = self.neben()
 		N = chi.modulus()
 		Nc = chi.conductor()
-		lb = 0
+		
 		divs = divisors(N/Nc)
 		divs.remove(N/Nc)  # proper divisors of N/Nc
+
 		for d in divs:
 			G_old = DirichletGroup(Nc * d)
+			Nt = N / (Nc * d)
 			chi_old = G_old(chi)
+			chi_old,bool = normalize_character(chi_old)
+			assert bool,"ugh"
 			chi_old = chi_old.minimize_base_ring()
-			if exotic.has_key(chi_old):
-				for f in exotic[chi_old]:
-					lb += multiplicity_from_oldspace(f,N)  ### chi should be contained in data of f I guess
-		self.set_lower_bound(self.lower_bound()+lb)
+			if recursive:
+				if not EXOTIC.has_key(chi_old):
+					self.output(3,"Recursively computing with character "+str(chi_old)+". Original level "+str(chi.modulus()))
+					wt1(chi_old,verbose=self.verbose_level())
+					self.output(3,"done with the recursion for "+str(chi_old))
+			if EXOTIC.has_key(chi_old) and len(EXOTIC[chi_old]) > 0:
+				for F in EXOTIC[chi_old]:
+					f = F[0]
+					phi = F[2]
+					olds = oldspan(f,N,chi_old,phi)
+					### oldspan returns 3-tuples: (form,phi,multiplicity)
+					for g in olds:
+						self.add_old_exotic(g)
+		self.compute_lower_bound()
 
 	def compute_CM(self):
 		"""Computes all of the CM forms which contribute to S_1(N,chi)^new
@@ -347,7 +467,7 @@ class wt1(SageObject):
 			phi = embedding from Q(chi) to K_f
 			m = dimension of the generalized eigenspace corresponding to this CM form 
 		"""
-		print "Computing CM"
+		self.output(5,"Computing CM forms")
 		chi = self.neben()
 		N = chi.modulus()
 		Nc = chi.conductor()
@@ -367,11 +487,12 @@ class wt1(SageObject):
 						self.add_CM(g)
 		self.compute_lower_bound()
 
-	def primes_used(self):
-		return [S.p() for S in self.spaces()]
-
-	## find non-supercuspidal prime
 	def next_good_prime(self):
+		"""returns the next prime not yet used in mod p computations (and which is not supercuspidal)
+
+		a prime here is supercuspidal if the valuation of the level at the prime is not the same as the
+		valuation of the conductor of chi at the prime.
+		"""
 		chi = self.neben()
 		N = chi.modulus()
 		Nc = chi.conductor()
@@ -385,15 +506,15 @@ class wt1(SageObject):
 
 		return ZZ(p)
 
-	def use_new_prime(self,p=None,log=None,verbose=False):
+	def use_new_prime(self,p=None):
+		"""computes mod p modular symbols in weight p (for p = next good prime) and incorates this info into spaces"""
 		if p == None:
 			p = self.next_good_prime()
-		print "using p=",p
 		sturm = STURM
 		chi = self.neben()
 		N = chi.modulus()
 
-		Sp = wt1_space_modp(p,chi,verbose=verbose,log=log)
+		Sp = wt1_space_modp(p,chi,verbose=self.verbose_level())
 
 		for Sq in self.spaces():
 			Sp = Sp.intersect(Sq)
@@ -407,7 +528,7 @@ class wt1(SageObject):
 		self.compute_bounds()
 		return 
 
-	def cut_down_to_unique(self,log=None,verbose=false):
+	def cut_down_to_unique(self,verbose=false):
 		"""collects various mod p information until the minimal polynomials of FC are all uniquely determined
 
 		This function computes the mod p modular symbols in weight p for various p.  For each p, a space of 
@@ -421,7 +542,7 @@ class wt1(SageObject):
 				discriminant of any of the forms minimal polynomials.  This allows for us to uniquely lift
 				the mod p reduction of a root of such a polynoial
 		"""
-		print "Cutting down to unique"
+		self.output(5,"Starting mod p computations to determine possible minimal polynomials of FC's")
 		chi = self.neben()
 		sturm = STURM
 
@@ -434,13 +555,13 @@ class wt1(SageObject):
 		p = 1
 		while (not self.is_fully_computed()) and (not self.is_unique() or not self.has_unramified_prime()):
 			p = self.next_good_prime()
-#			print "using",p
-			self.use_new_prime(p=p,log=log,verbose=verbose)
+			self.use_new_prime(p=p)
 			self.remove_non_Artin_CM(p)
-#			print self.spaces()
+			self.remove_non_Artin_old_exotic(p)
 		return
 
 	def remove_non_Artin_CM(self,p):
+		"""removes all CM forms which are non-Artin at p"""
 		chi = self.neben()
 		new_list = []
 		for f in self.CM():
@@ -450,98 +571,125 @@ class wt1(SageObject):
 		self.compute_bounds()
 		return
 
-	def excise_old_exotic_forms(self):
-		##!!
+	def remove_non_Artin_old_exotic(self,p):
+		"""removes all old exotic forms which are non-Artin at p"""
+		chi = self.neben()
+		new_list = []
+		for f in self.old_exotic():
+			if not self.is_non_Artin(f,p):
+				new_list += [f]
+		self.set_old_exotic(new_list)
 		self.compute_bounds()
 		return
 
-	def excise_CM_forms(self,log=None,verbose=False):
-		"""This functions removes the potential weight 1 forms which arise from CM forms
+	def excise_lower_bound_forms(self,tag="CM"):
+		"""This functions removes the potential weight 1 forms which arise from either CM or old exotic forms
 
-		Let f be a CM form which contributes a degree d subspace to mod p modular symbols in weight p.
+		Set tag = "CM" to handle CM case.
+		Set tag = "old_exotic" to handle old_exotic case.
+
+		Let f be a CM or old exotic form which contributes a degree d subspace to mod p modular symbols in weight p.
 		(Here f contributes via all of its Galois conjugates and by a possible "doubling" when (p,N)=1.)
 		If we see that there is at most a d dimensional space with the mod p Hecke-eigenvalues of f,
 		we are in good shape, and we can just throw away these Hecke-eigensystems.
 
 		However, if in the mod p space, we are seeking a D dimensional space with D > d, then this could
 		happen for two reasons:
-			(a) there are additional weight p forms which are congruent to this CM form;
+			(a) there are additional weight p forms which are congruent to our given CM or old exotic form
 			(b) we haven't computed enough Hecke-eigenvalues yet and in fact the D dimensional space
 				breaks up into a CM piece and a non-CM piece.
-		When p > 2 and we are in case (a), all is fine as exotic forms do not admit congruences to CM forms. 
-		In particular, these extra forms in weight p cannot arise form weight 1.  However, we must eliminate
-		case (b).  We do this by computing all the way up to the true Sturm bound
+
+		In the CM case, when p > 2 and we are in case (a), all is fine: exotic forms do not admit congruences 
+		to CM forms. In particular, these extra forms in weight p cannot arise form weight 1.  However, we must 
+		eliminate case (b).  We do this by computing all the way up to the true Sturm bound
+
+		In the exotic case, this code does not rule out case (b) and will crash (on an assertion error) if this occurs.
 		"""
-		print "bounds don't meet: now removing CM from"
+		assert tag == "CM" or tag == "old_exotic","bad tag entered in remove_lower_bound_forms"
 		sturm = STURM 
 		chi = self.neben()
 		N = chi.modulus()
 		Qchi = self.Qchi()
 		success = true
 		hecke_used = []
-		for F in self.CM():
+		if tag == "CM":
+			forms = self.CM()
+		else:
+			forms = self.old_exotic()
+
+		if len(forms) > 0:
+			self.output(5,"We now remove "+str(len(forms))+" "+tag+" form(s)")
+		for F in forms:
 			f = F[0]
-			print "trying CM",f
+			self.output(4,"Trying to remove "+tag+" form "+str(f))
 			phi = F[1]
-			CM_mult = F[2]
+			lb_mult = F[2]
 			h = {}
 			for q in f.keys():
 				if q < sturm:
 					h[q] = [minpoly_over(f[q],Qchi,phi)]
-			print "working on",f,"--",h
 			if hecke_used.count(h) == 0:
 				excised = false
 				hecke_used += [h]
 				for S in self.spaces():
 					if S.unique():
 						p = S.p()
-#						e = scaling(N,p)
-						print "p =",p
 						hp = deepcopy(h)
 						if hp.has_key(p):
 							hp.pop(p)
-						modp_mult = S.hecke_multiplicity(h)
+						modp_mult = S.hecke_multiplicity(hp)  ###!!! CHECK HERE hp or h!!!!
 						dp = max_degree(hp)
-						print "have",modp_mult,"copies of this form and am expecting at least",CM_mult*dp
-						assert modp_mult >= dp * CM_mult,"CM/old not found!!"+str(f)+str(self)
-						if modp_mult == CM_mult * dp:
+						self.output(4,"have "+str(modp_mult)+" copies of this form mod "+str(p)+" and am expecting at least "+str(lb_mult*dp))
+						# second condition below can be tripped if CM form is already removed via a congruence
+						assert (modp_mult >= dp * lb_mult) or (modp_mult == 0),"CM/old not found!!"+str(f)+str(self)
+						if modp_mult == lb_mult * dp:
 							### multiplicity exactly correct so we can throw away these CM forms safely
-							print "can safely remove the CM/old form "+str(f)
-							output(log,verbose,3,"can safely remove the CM/old form "+str(f))
-							self.fully_excise_form(h,CM=true)
+							self.output(4,"can safely remove the "+tag+" form "+str(f))
+							self.fully_excise_form(h,tag=tag)
 							excised = true
 							break
-				if not excised:
-					print "too many --- checking up to strong_sturm for CM/old with p =",p
+						if modp_mult == 0:
+							assert tag == "CM","old exotic form not present"
+							self.output(4,"form already removed via a congruence or galois conjugate (hopefully)")
+							self.fully_excise_form(h,tag=tag)
+							excised = true
+							break
+				if not excised and tag == "CM":
+					self.output(4,"too many forms found --- checking up to strong_sturm for CM with p="+str(p)+" to prove congruence")
 					### there are potentially forms congruent to this CM form in weight p which don't come from weight 1
 					### but we now are careful and check to the sturm bound to prove this congruence
 					p,bool = self.good_CM_cut_out_prime()
-					print "using p =",p
+#					print "using p =",p
 					S = self.space_at_p(p)
 					assert bool,"need to program when there is no good prime here"
-#					e = scaling(N,p)
 					hp = deepcopy(h)
 					if hp.has_key(p):
 						hp.pop(p)
 					dp = max_degree(hp)
 					modp_mult = self.true_modp_mult(p,hp)
 					a = self.generalized_eigenspace_dimension(p,f,phi,modp_mult)
-					print "(a,dp,modp_mult) =",(a,dp,modp_mult)
+#					print "(a,dp,modp_mult) =",(a,dp,modp_mult)
 					assert a * dp <= modp_mult, "something wrong here"
 					if a * dp == modp_mult:
-						print "Found that the",a*dp,"CM forms fill up the",modp_mult,"-dimensional generalized eigenspace"
-						print "after careful check removing the CM/old form "+str(f)
-					 	output(log,verbose,3,"after careful check removing the CM/old form "+str(f))
-					 	self.fully_excise_form(h,CM=true)
+						self.output(4,"Found that the "+str(a*dp)+" CM forms fill up the "+str(modp_mult)+"-dimensional generalized eigenspace")
+					 	self.output(4,"Can remove the CM form "+str(f))
+					 	self.fully_excise_form(h,tag="CM")
 					else:
-					 	print "couldn't remove the CM/old form",f
+					 	self.output(4,"Couldn't remove the CM form "+str(f))
 					 	success = false
-		assert success,"failed in CM removal"
-		print "CM removed"
+				elif not excised:
+					success = false
+		assert success,"failed in CM/old removal"
+		if len(forms) > 0:
+			if tag == "CM":
+				self.output(4,"All CM forms removed")
+			else:
+				self.output(4,"All old exotic forms removed")
 		self.compute_bounds()
 		return success
 
 	def good_CM_cut_out_prime(self):
+		"""returns an odd prime which yielded a space with unique min polys"""
 		ps = [S.p() for S in self.spaces() if S.unique()]
 		### 2 is no good because there could be congruences between CM and exotic
 		if ps.count(2) > 0:
@@ -552,7 +700,8 @@ class wt1(SageObject):
 			return min(ps),true
 
 	def true_modp_mult(self,p,hp):
-		print "true_modp_mult",p,hp
+		"""returns the dimension of the generalized eigenspace attached to the eigensystem h in mod p weight p mod syms"""
+#		print "true_modp_mult",p,hp
 		chi = self.neben()
 		pchi = FC.pchi(p,chi)
 		kchi = pchi.residue_field()
@@ -645,23 +794,30 @@ class wt1(SageObject):
 		return ans
 
 	## removes h from all unique spaces and from CM field
-	def fully_excise_form(self,h,CM=false):
-		print "in fully excise with",h
+	def fully_excise_form(self,h,tag=None):
 		for S in self.spaces():
 			if S.unique():
 				while S.hecke_multiplicity(h) > 0:
 					S.remove_hecke(h)
-		if CM:
-			new_list = []
-			for F in self.CM():
-				f = F[0]
-				phi = F[1]
-				hf = {}
-				for q in h.keys():
-					hf[q] = [minpoly_over(f[q],self.Qchi(),phi)]
-				if hf != h:
-					new_list += [F]
+		if tag == "CM":
+			forms = self.CM()
+		elif tag == "old_exotic":
+			forms = self.old_exotic()
+		else:
+			forms = []
+		new_list = []
+		for F in forms:
+			f = F[0]
+			phi = F[1]
+			hf = {}
+			for q in h.keys():
+				hf[q] = [minpoly_over(f[q],self.Qchi(),phi)]
+			if hf != h:
+				new_list += [F]
+		if tag == "CM":
 			self.set_CM(new_list)
+		elif tag == "old_exotic":
+			self.set_old_exotic(new_list)
 		return 
 
 	def good_form_for_qexp(self,f):
@@ -689,6 +845,7 @@ class wt1(SageObject):
 
 		We then add this form and all of its Galois conjugates over Q(chi) to the "exotic_forms" field.
 		"""
+		self.output(5,"Running through remaining forms and verifying that they come from weight 1")
 		S = self.unique_space()
 		need_more_primes = false
 		done = true
@@ -704,7 +861,7 @@ class wt1(SageObject):
 				if bool:
 					fqs = galois_conjugates(fq,self.neben(),phi)
 					for data in fqs:
-						self.add_exotic_form(data[0],data[1])
+						self.add_exotic_form(data)
 				##!! need to check multiplicity here --- this is cheating!
 				self.fully_excise_form(f.hecke())
 		self.compute_bounds()
@@ -884,6 +1041,36 @@ class wt1(SageObject):
 			else:
 				output(log,verbose,1,"Min polys not uniquely determined: need to compute with more primes")
 				return 0,0,not fail,need_more_primes
+
+	def add_data_to_exotic(self):
+		"""adds the exotic forms computed to the global variable EXOTIC
+
+		The data of exotic forms computed is added to EXOTIC[chi] where chi is the nebentype character.
+		The data for EXOTIC[sigma chi] is also added for each sigma in Gal(Q(chi)/Q).
+		"""
+		chi = self.neben()
+		for F in self.exotic_forms():
+			f = F[0]
+			phi = F[1]
+			Kf = f.base_ring()
+			if Kf == QQ:
+				Kf = CyclotomicField(2)
+			G = Kf.galois_group()
+			for sigma in G:
+				chi_sigma = act_galois_char(chi.change_ring(phi),sigma)
+				chi_sigma,bool = normalize_character(chi_sigma)
+				assert bool,"ugh"
+				data = [act_galois_ps(f,sigma),chi_sigma,compose(sigma,phi)]
+				if not EXOTIC.has_key(chi_sigma):
+					EXOTIC[chi_sigma] = []
+				# trying to clear out repeats
+				v = [F[0] for F in EXOTIC[chi_sigma]]
+				if v.count(data[0]) == 0:
+					EXOTIC[chi_sigma] += [data]
+
+	def output(self,verbose,str):
+		if self.verbose_level() >= verbose:
+			print str
 
 
 #--------------------
@@ -1079,3 +1266,40 @@ def an(evs,n,chi,phi):
 				return evs[q]
 			else:
 				return an(evs,q**(e-1),chi,phi) * evs[q] - phi(chi(q)) * an(evs,q**(e-2),chi,phi)
+
+## trying to get eps take values in some normalized form with smallest coefficient field
+def normalize_character(eps):
+	eps = eps.minimize_base_ring()
+	K = eps(1).parent()
+	if K == QQ:
+		K = CyclotomicField(2)
+	N = K.zeta_order()
+	L = CyclotomicField(N)
+	Maps = Hom(K,L)
+	if len(Maps)>0:
+		phi = Hom(K,L)[0]
+		eps = eps.change_ring(phi)
+		eps = eps.minimize_base_ring()
+		return eps,True
+	else:
+		print "Problem with:"
+		print eps.modulus()
+		print eps
+		print "-------------"
+		return eps,False
+
+def act_galois_char(chi,sigma):
+	chis = chi.galois_orbit()
+	vals_chi = chi.values_on_gens()
+	for psi in chis:
+		if map(sigma,vals_chi) == list(psi.values_on_gens()):
+			return psi
+	assert 1==0,"failed in act_galois"
+
+def act_galois_ps(f,sigma):
+	R = f.parent()
+	q = R.gen()
+	ans = 0
+	for n in range(f.degree()+1):
+		ans += sigma(f[n]) * q**n
+	return ans
