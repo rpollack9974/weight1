@@ -123,13 +123,8 @@ class wt1(SageObject):
 		if self.is_fully_computed():
 			return
 
-		while not self.verify_remaining_forms():
-			self.use_new_prime()
-			if self.is_fully_computed():
-				break
-
+		self.verify_remaining_forms()
 		self.add_data_to_exotic()
-		assert self.is_fully_computed()
 		return 
 
 	def Qchi(self):
@@ -526,6 +521,8 @@ class wt1(SageObject):
 			self.replace_space(self.space(i).intersect(Sp),i)
 		self.add_space(Sp)
 		self.compute_bounds()
+		self.remove_non_Artin_CM(p)
+		self.remove_non_Artin_old_exotic(p)
 		return 
 
 	def cut_down_to_unique(self,verbose=false):
@@ -556,8 +553,6 @@ class wt1(SageObject):
 		while (not self.is_fully_computed()) and (not self.is_unique() or not self.has_unramified_prime()):
 			p = self.next_good_prime()
 			self.use_new_prime(p=p)
-			self.remove_non_Artin_CM(p)
-			self.remove_non_Artin_old_exotic(p)
 		return
 
 	def remove_non_Artin_CM(self,p):
@@ -846,28 +841,27 @@ class wt1(SageObject):
 		We then add this form and all of its Galois conjugates over Q(chi) to the "exotic_forms" field.
 		"""
 		self.output(5,"Running through remaining forms and verifying that they come from weight 1")
-		S = self.unique_space()
-		need_more_primes = false
-		done = true
-		for f in S:
+		while not self.is_fully_computed():
+			S = self.unique_space()
+			f = S[0]
 			g = self.good_form_for_qexp(f)
 			fq,phi,passed,need_more_primes = self.form_qexp(g,verbose=5)
-			if need_more_primes:
-				done = false
 			if not passed:
 				self.fully_excise_form(f.hecke())
 			elif not need_more_primes:
-				bool = self.verify(fq,phi)
+				bool = self.verify_q_expansion(fq,phi)
 				if bool:
 					fqs = galois_conjugates(fq,self.neben(),phi)
 					for data in fqs:
 						self.add_exotic_form(data)
 				##!! need to check multiplicity here --- this is cheating!
 				self.fully_excise_form(f.hecke())
-		self.compute_bounds()
-		return done
+			if need_more_primes:
+				self.use_new_prime()
+			self.compute_bounds()
+		return 
 
-	def verify(self,fq,phi):
+	def verify_q_expansion(self,fq,phi):
 		chi = self.neben()
 		sturm = ceil(Gamma0(chi.modulus()).index()/3) ##! IS THIS RIGHT????
 
