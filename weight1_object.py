@@ -386,7 +386,6 @@ class wt1(SageObject):
 		self.compute_upper_bound()
 		self.compute_lower_bound()
 
-
 	def check_local_constraints(self):
 		"""checks that there are no local obstructions to weight 1 exotic forms existing
 
@@ -661,12 +660,12 @@ class wt1(SageObject):
 					if hp.has_key(p):
 						hp.pop(p)
 					dp = max_degree(hp)
-					modp_mult = self.true_modp_mult(p,hp)
-					a = self.generalized_eigenspace_dimension(p,f,phi,modp_mult)
+					modp_mult = self.modp_mult_hecke_system(p,hp)
+					modp_mult_form = self.modp_mult_form(p,f,phi,modp_mult)
 #					print "(a,dp,modp_mult) =",(a,dp,modp_mult)
-					assert a * dp <= modp_mult, "something wrong here"
-					if a * dp == modp_mult:
-						self.output(4,"Found that the "+str(a*dp)+" CM forms fill up the "+str(modp_mult)+"-dimensional generalized eigenspace")
+					assert modp_mult_form * dp <= modp_mult, "something wrong here"
+					if modp_mult_form * dp == modp_mult:
+						self.output(4,"Found that the "+str(modp_mult_form*dp)+" CM forms fill up the "+str(modp_mult)+"-dimensional generalized eigenspace")
 					 	self.output(4,"Can remove the CM form "+str(f))
 					 	self.fully_excise_form(h,tag="CM")
 					else:
@@ -694,9 +693,9 @@ class wt1(SageObject):
 		else:
 			return min(ps),true
 
-	def true_modp_mult(self,p,hp):
-		"""returns the dimension of the generalized eigenspace attached to the eigensystem h in mod p weight p mod syms"""
-#		print "true_modp_mult",p,hp
+	def modp_mult_hecke_system(self,p,hp):
+		"""returns the dimension of the generalized eigenspace cut out by hp in mod p weight p modular symbols"""
+#		print "modp_mult",p,hp
 		chi = self.neben()
 		pchi = FC.pchi(p,chi)
 		kchi = pchi.residue_field()
@@ -708,7 +707,13 @@ class wt1(SageObject):
 		M = ordinary_subspace(M,p)
 		return M.dimension()
 
-	def generalized_eigenspace_dimension(self,p,f,phi,modp_mult):
+	def modp_mult_form(self,p,f,phi,modp_mult):
+		"""returns the dimension of the generalized eigenspace cut out by f in mod p weight p modular symbols
+
+		f is a q-expansion
+		phi is a map from Q(chi) to K_f
+		modp_mult is an a prior bound on the dimension 
+		"""
 		sturm = STURM
 		chi = self.neben()
 		N = chi.modulus()
@@ -716,6 +721,7 @@ class wt1(SageObject):
 		z = Qchi.gen()
 		pchi = FC.pchi(p,chi)
 		kchi = pchi.residue_field()
+		# code here searches for the right way to embed kchi into the residue field of a prime over p in K_f
 		Kf = f[f.keys()[0]].parent()
 		pf = Kf.prime_above(p)
 		kf = pf.residue_field()
@@ -724,6 +730,9 @@ class wt1(SageObject):
 			if phibar(kchi(z)) == kf(phi(z)):
 				break
 		chip = chi.change_ring(phibar)
+		# here we are finding which space of mod p modular symbols to use.  namely, we can take the coefficient
+		# field to be kf unless alpha_p (a root of x^2-ap*x+chi(p)) is not in kf in which case we pass to a 
+		# quadratic extension
 		if N % p != 0 and f.has_key(p):
 				ap = f[p]
 				R = PolynomialRing(kf,'x')
@@ -737,11 +746,16 @@ class wt1(SageObject):
 		else:
 			M = ModularSymbols(chip,p,1,kf).cuspidal_subspace()
 
+		# cuts out eigenspace away from p (unless p | N in which case p is included as well)
 		for q in primes(sturm):
 			if q != p or N % p == 0:
 				Tq = M.hecke_operator(q)
 				M = ((Tq-kf(f[q]))**(2*modp_mult)).kernel()
 
+		# now to handle a_p -- three cases:
+		#	alpha_p = beta_p
+		#	alpha_p different from beta_p and in k_f
+		# 	alpha_p and beta_p conjugate in extension of k_f
 		if p < sturm and N % p != 0:
 			Tp  = M.hecke_operator(p)
 			if len(pibar_p.roots()) == 1:
@@ -763,8 +777,11 @@ class wt1(SageObject):
 
 		return a
 
-	### checks if the modular form (actually 3-tuple (form,phi,multiplicity)) is 
 	def is_non_Artin(self,f,p):
+		"""checks if the modular form f is non-Artin at p
+
+		note that f is really tuple (q-expansion, phi, multiplicity) coming from either CM or old_exotic
+		"""
 		chi = self.neben()
 		pchi = FC.pchi(p,chi)
 		phi = f[1]
@@ -778,18 +795,9 @@ class wt1(SageObject):
 				return True
 		return False
 
-
-	## h = hecke eigensystem.
-	## runs through all unique spaces and finds minimal multiplicity of h
-	def min_hecke_multiplicity(self,h):
-		ans = Infinity
-		for S in self.spaces():
-			if S.unique():
-				ans = min(ans,S.hecke_multiplicity(h))
-		return ans
-
 	## removes h from all unique spaces and from CM field
 	def fully_excise_form(self,h,tag=None):
+		"""fully removes the Hecke eigensystem h from all mod p spaces as well as from CM or old_exotic based on tag"""
 		for S in self.spaces():
 			if S.unique():
 				while S.hecke_multiplicity(h) > 0:
@@ -816,6 +824,10 @@ class wt1(SageObject):
 		return 
 
 	def good_form_for_qexp(self,f):
+		"""finds a good prime to use to compute q-expansion of f
+
+		such a prime p must have been already used and the eigenvalues of f must be uniquely determined mod p
+		"""
 		d = f.disc()
 		found = false
 		for S in self.spaces():
@@ -828,7 +840,7 @@ class wt1(SageObject):
 				return g
 
 	def verify_remaining_forms(self):
-		"""q-expansions of each remaining form computes, squared and scaled by E_1(chi^(-1)) to test if true wt 1
+		"""Takes each remaining form and attempts to produce a bonafide weight 1 q-expansion
 
 		At this point, all of the CM and old exotic forms have been removed.  The remaining forms we test using the
 		"square" and "scale by E_1(chi)" trick.  
@@ -862,6 +874,11 @@ class wt1(SageObject):
 		return 
 
 	def verify_q_expansion(self,fq,phi):
+		"""verifies that the q-expansion fq comes from a bonafide weight 1 form
+
+		fq is a q-expansion in with coefficients in K_f
+		phi is a map from Q(chi) to K_f
+		"""
 		chi = self.neben()
 		sturm = ceil(Gamma0(chi.modulus()).index()/3) ##! IS THIS RIGHT????
 
@@ -879,6 +896,17 @@ class wt1(SageObject):
 
 	
 	def form_qexp(self,f,log=None,verbose=False):
+		"""computes the q-expansion of the Hecke-eigensystem f
+
+		Returns 4 items: 
+			q-expansion 
+			phi mapping Q(chi) to K_f
+			boolean: false is f is proven not to come from weight 1
+			boolean: if more primes are needed to do this computation
+
+		If the last boolean is true or the second to last is false, nonsense is returned in the first two slots
+		"""
+		# collecting in each unique space the Hecke eigensystem corresponding to f
 		fs = []
 		for S in self.spaces():
 			if S.unique():
@@ -898,6 +926,7 @@ class wt1(SageObject):
 		R = PolynomialRing(Kf,'x')
 		pf = Kf.prime_above(p)
 		kf = pf.residue_field()
+		# finding good embedding of kchi into kf
 		H = Hom(kchi,kf)
 		found = false
 		for phibar in H:
