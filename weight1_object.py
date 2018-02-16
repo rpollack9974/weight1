@@ -1376,7 +1376,7 @@ def normalize_character(eps):
 	N = K.zeta_order()
 	L = CyclotomicField(N)
 	Maps = Hom(K,L)
-	if len(Maps)>0:
+	if Maps.cardinality()>0:
 		phi = Hom(K,L)[0]
 		eps = eps.change_ring(phi)
 		eps = eps.minimize_base_ring()
