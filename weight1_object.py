@@ -992,6 +992,7 @@ class wt1(SageObject):
 		hecke = {}
 		p = M.base_ring().characteristic()
 		chi = self.neben()
+		N = chi.modulus()
 		kchi = phibar.domain()
 		kf = phibar_lf.domain()
 		Kf,phi = f.FC_field()
