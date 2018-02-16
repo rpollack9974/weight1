@@ -1,3 +1,8 @@
+
+### Trivial TO DO
+# minpoly_over takes (alpha,K,phi) but K is the domain of phi
+
+
 """ 
 global variables in use:
 ------------------------
@@ -112,15 +117,18 @@ class wt1(SageObject):
 
 		self.cut_down_to_unique()
 		if self.is_fully_computed():
+			self.add_data_to_exotic()
 			return 
 
 		self.excise_lower_bound_forms(tag="CM")
 		if self.is_fully_computed():
+			self.add_data_to_exotic()
 			return
 
 		self.compute_old_exotic()
 		self.excise_lower_bound_forms(tag="old_exotic")
 		if self.is_fully_computed():
+			self.add_data_to_exotic()
 			return
 
 		self.verify_remaining_forms()
@@ -330,7 +338,7 @@ class wt1(SageObject):
 
 	def set_to_fully_computed(self):
 		"""sets the status of the space to fully computed and records the exotic form info to EXOTIC"""
-		self.add_data_to_exotic()
+#		self.add_data_to_exotic()
 		self._fully_computed = True
 
 	def is_locally_constrained(self):
@@ -650,22 +658,30 @@ class wt1(SageObject):
 							break
 				if not excised and tag == "CM":
 					self.output(4,"too many forms found --- checking up to strong_sturm for CM with p="+str(p)+" to prove congruence")
+					#! never programmed here up to strong_sturm
 					### there are potentially forms congruent to this CM form in weight p which don't come from weight 1
 					### but we now are careful and check to the sturm bound to prove this congruence
 					p,bool = self.good_CM_cut_out_prime()
-#					print "using p =",p
-					S = self.space_at_p(p)
 					assert bool,"need to program when there is no good prime here"
+					print "using p =",p
+					S = self.space_at_p(p)
+					strong_sturm = S[0].space()[0].sturm_bound()
+					h = {}
+					for q in f.keys():
+						if q < sturm:
+							h[q] = [minpoly_over(f[q],Qchi,phi)]
 					hp = deepcopy(h)
 					if hp.has_key(p):
 						hp.pop(p)
 					dp = max_degree(hp)
+#					e = self.multiplier(p)
+					e = 1
 					modp_mult = self.modp_mult_hecke_system(p,hp)
 					modp_mult_form = self.modp_mult_form(p,f,phi,modp_mult)
-#					print "(a,dp,modp_mult) =",(a,dp,modp_mult)
-					assert modp_mult_form * dp <= modp_mult, "something wrong here"
-					if modp_mult_form * dp == modp_mult:
-						self.output(4,"Found that the "+str(modp_mult_form*dp)+" CM forms fill up the "+str(modp_mult)+"-dimensional generalized eigenspace")
+#					print "(modp_mult_form,e,dp,modp_mult) =",(modp_mult_form,e,dp,modp_mult)
+					assert modp_mult_form * e * dp <= modp_mult, "something wrong here"
+					if modp_mult_form * e * dp == modp_mult:
+						self.output(4,"Found that the "+str(modp_mult_form*e*dp)+" CM forms fill up the "+str(modp_mult)+"-dimensional generalized eigenspace")
 					 	self.output(4,"Can remove the CM form "+str(f))
 					 	self.fully_excise_form(h,tag="CM")
 					else:
@@ -710,7 +726,7 @@ class wt1(SageObject):
 	def modp_mult_form(self,p,f,phi,modp_mult):
 		"""returns the dimension of the generalized eigenspace cut out by f in mod p weight p modular symbols
 
-		f is a q-expansion
+		f is a potential weight 1 form (no #!)
 		phi is a map from Q(chi) to K_f
 		modp_mult is an a prior bound on the dimension 
 		"""
@@ -857,8 +873,9 @@ class wt1(SageObject):
 			S = self.unique_space()
 			f = S[0]
 			g = self.good_form_for_qexp(f)
-			fq,phi,passed,need_more_primes = self.form_qexp(g,verbose=5)
-			if not passed:
+			self.output(5,"Working with the form: "+str(g))
+			fq,phi,fail,need_more_primes = self.form_qexp(g)
+			if fail:
 				self.fully_excise_form(f.hecke())
 			elif not need_more_primes:
 				bool = self.verify_q_expansion(fq,phi)
@@ -894,19 +911,58 @@ class wt1(SageObject):
 
 		return bool
 
-	
-	def form_qexp(self,f,log=None,verbose=False):
-		"""computes the q-expansion of the Hecke-eigensystem f
+	def cut_out_eigenspace(self,f,generalized=false,full_sturm=0):
+		"""returns mod p modular symbol space on which Hecke acts by a scalars satisfying min polys in f
 
-		Returns 4 items: 
-			q-expansion 
-			phi mapping Q(chi) to K_f
-			boolean: false is f is proven not to come from weight 1
-			boolean: if more primes are needed to do this computation
-
-		If the last boolean is true or the second to last is false, nonsense is returned in the first two slots
+		if generalized is true, it returns a generalized eigenspace
+		if full_sturm is true, it computes all the way to the sturm bound
 		"""
-		# collecting in each unique space the Hecke eigensystem corresponding to f
+		p = f.p()
+		lf,phibar,phibar_lf = f.modp_FC_field(p,alpha_p=true)
+		phibar_full = compose(phibar_lf,phibar)
+		chi = self.neben()
+		N = chi.modulus()
+		pchi = FC.pchi(p,chi)
+		kchi = pchi.residue_field()
+		Rchi = PolynomialRing(kchi,'x')
+		Rf = PolynomialRing(lf,'x')
+		x = Rf.gen()
+		chip = chi.change_ring(phibar).change_ring(phibar_lf)
+		M = ModularSymbols(chip,p,1,lf).cuspidal_subspace()
+		if full_sturm != 0:
+			ps = primes(full_sturm)
+		else:
+			ps = f.primes()
+		for q in ps:
+			f_q = hom_to_poly(Rchi(f[q][0]),phibar_full)
+			T = M.hecke_operator(q)
+			true_f_q = T.charpoly()
+			### need now to find gcd of f_q and true_f_q to find right eigenvalue to pick
+			### but when q=p, we need to look at alpha_p instead
+			if q == p:
+				possible_a_ps = f_q.roots()
+				# pass to ordinary subspace
+				while possible_a_ps.count(0) > 0:
+					possible_a_ps.remove(0)
+				f_q = 1
+				for a_p in possible_a_ps:
+					f_q *= x**2-a_p[0]*x+phibar_full(kchi(chi(p)))
+			f_q = gcd(f_q,true_f_q)
+			if f_q.degree() > 0:
+				eigen = f_q.roots()[0][0]
+				if not generalized:
+					M = (T-eigen).kernel()
+				else:
+					M = ((T-eigen)**M.dimension()).kernel()
+			else:
+				return M.zero_submodule(),phibar,phibar_lf
+			if M.dimension() == 1:
+				break
+
+		return M,phibar,phibar_lf
+
+	def all_copies_of_form(self,f):
+		"""returns list of forms equal to f arising from various mod p mod symbol spaces"""
 		fs = []
 		for S in self.spaces():
 			if S.unique():
@@ -914,156 +970,177 @@ class wt1(SageObject):
 					if f == g:
 						fs += [g]
 						break
+		return fs
+
+	def extract_modp_evs_and_hecke_polys(self,f,M,phibar,phibar_lf,strong_sturm):
+		"""computes mod p eigenvalues in M and if Artin-type finds char 0 Artin min poly lifts
+
+		Input --
+			f = potential weight 1 form
+			M = mod p space of modular symbols where Hecke acts by scalars which satisfy min polys of f
+			phibar : k_chi --> k_f
+			phibar_lf : k_f --> k_f(alpha_p)
+			strong_sturm = bound we compute up to
+
+		Output --
+			evs_modp: dictionary encoding mod p eigenvalues
+			hecke: dictionary encoding (unique) Artin poly lift
+			fail: true if not of Artin type
+			need_more_primes: true if need more primes to uniquely pin down hecke
+		"""
+		evs_modp = {}
+		hecke = {}
+		p = M.base_ring().characteristic()
+		chi = self.neben()
+		kchi = phibar.domain()
+		kf = phibar_lf.domain()
+		Kf,phi = f.FC_field()
+		need_more_primes = false
+		fail = false
+		fs = self.all_copies_of_form(f)
+		for q in primes(strong_sturm):
+			self.output(5,"-in extract_hecke_polys computing mod "+str(p)+" eigenvalue at q="+str(q))
+			T = M.hecke_operator(q)
+			if q != p:
+				assert len(T.charpoly().roots()) == 1,"too many roots: "+str(T.charpoly().roots())
+				a_q = T.charpoly().roots()[0][0]
+				evs_modp[q] = [y for y in kf if phibar_lf(y)==a_q][0] # a_q is in k_f and not l_f
+			else:
+				alpha = T.charpoly().roots()[0][0]
+				if N % p != 0:
+					a_p = alpha + phibar_lf(phibar(kchi(chi(p))))/alpha
+					evs_modp[q] = [y for y in kf if phibar_lf(y)==a_p][0] # a_p is in k_f and not l_f
+				else:
+					evs_modp[q] = [y for y in kf if phibar_lf(y)==alpha][0] # a_p is in k_f and not l_f
+			pi_q = minpoly_over(evs_modp[q],kchi,phibar)
+			hecke[q] = FC.possible_Artin_polys(pi_q,chi,q,p,upper=self.upper_bound())
+			self.output(100,"With prime "+str(q)+" found "+str(hecke[q]))
+			if len(hecke[q]) == 0:
+				# Not Artin type
+				fail = true
+				return evs_modp,hecke,fail,need_more_primes
+			elif len(hecke[q]) > 1:
+				for g in fs:
+					if g.p() != p:
+						self.output(5,"--not uniquely determined with p="+str(p)+": using p="+str(g.p())+" to help")
+						Mg = g.space()[0]   
+						pg = Kf.prime_above(g.p()) # Note that Kf = Kg
+						kg = pg.residue_field()
+						kchi_g = Mg.base_ring()
+						fq = Mg.hecke_polynomial(q)
+						if g.p() != q:
+							assert len(fq.factor()),"Not decomposed enough at "+str(q)
+							fq = fq.factor()[0][0]
+							pi_qs = FC.possible_Artin_polys(fq,chi,q,g.p(),upper=self.upper_bound())
+						else:
+							pi_alpha = fq.factor()[0][0]
+							lg,phibar_g = pi_alpha.splitting_field('a',map=True)
+							alpha = hom_to_poly(pi_alpha,phibar_g).roots()[0][0]
+							if N % g.p() != 0:
+								ap = alpha + phibar_g(kchi_g(chi(g.p())))/alpha
+							else:
+								ap = alpha
+							fp = minpoly_over(ap,kchi_g,phibar_g)
+							pi_qs = FC.possible_Artin_polys(fp,chi,g.p(),g.p(),upper=self.upper_bound())
+						self.output(100,"With helping prime "+str(g.p())+" T_"+str(q)+" found "+str(pi_qs))
+						S1 = set(hecke[q])
+						S2 = set(pi_qs)
+						hecke[q] = list(S1.intersection(S2))
+						if len(hecke[q]) == 0:
+							fail = True
+							return evs_modp,hecke,fail,need_more_primes
+						elif len(hecke[q]) == 1:
+							break
+				if len(hecke[q])>1:
+					need_more_primes = true
+					return evs_modp,hecke,fail,need_more_primes
+
+		return evs_modp,hecke,fail,need_more_primes
+
+	def form_qexp(self,f):
+		"""computes the q-expansion of the Hecke-eigensystem f
+
+		Returns 4 items: 
+			q-expansion 
+			phi mapping Q(chi) to K_f
+			boolean: true is f is proven not to come from weight 1
+			boolean: true if more primes are needed to do this computation
+
+		If either boolean is true, nonsense is returned in the first two slots
+		"""
 		p = f.p()
 		chi = self.neben()
-		N = chi.modulus()
 		Qchi = self.Qchi()
-		z = Qchi.gen()
+		N = chi.modulus()
 		strong_sturm = ceil(Gamma0(N).index() / 3)  ###! CHECK THIS!!!!
-		M = f.space()[0]
-		kchi = M.base_ring()
-		Kf,phi = f.FC_field()
-		R = PolynomialRing(Kf,'x')
-		pf = Kf.prime_above(p)
-		kf = pf.residue_field()
-		# finding good embedding of kchi into kf
-		H = Hom(kchi,kf)
-		found = false
-		for phibar in H:
-			if phibar(kchi(z)) == kf(phi(z)):
-				found = true
-				break
-		assert found,"no phibar found"
 		need_more_primes = false
 
-		d = M.dimension()
-		V = kf**d 
-		W = V
-		Ws = [W]
-		q = 2
-		if N % p != 0:
-			e = 2
+		### We form the needed mod p modular symbol eigenspace on which Hecke acts by a scalar
+		self.output(5,"Cutting out eigenspace")
+		M,phibar,phibar_lf = self.cut_out_eigenspace(f)
+		if M.dimension() == 0:
+			fail = true
+			return 0,0,fail,need_more_primes
+		if M.dimension() > 1:
+			self.output(5,"Too big --- cutting out eigenspace again to strong_sturm")
+			M,phibar,phibar_lf = self.cut_out_eigenspace(f)
+		self.output(5,"--finished cutting down.  Computing e-vals now")
+
+		### Simulateously extracting the mod p eigenvalues from this space and finding Artin minimal polynomials
+		### that lifts of these mod p eigenvalues satisfy.  This may involve combining mod p information for 
+		### various p and may prove to show that the form is actually now Artin
+		evs_modp,hecke,fail,need_more_primes = self.extract_modp_evs_and_hecke_polys(f,M,phibar,phibar_lf,strong_sturm)
+		if fail or need_more_primes:
+			if need_more_primes:
+				self.output(5,"Min polys not uniquely determined: need to compute with more primes")
+			if fail:
+				self.output(5,"Not Artin")
+			return 0,0,fail,need_more_primes
+
+		## We now have kf as an abstract finite extension of kchi.  We also can pick a prime pf of Kf over p.
+		## Then the residue field of pf, say kf_global, if isomorphic to kf.  We pick an isomophism j:kf_global-->kf
+		## We then seek a phi : Qchi --> K_f such that for z in O_Qchi, phibar(kchi(z)) = j(kf_global(phi(z)))
+		pchi = FC.pchi(p,chi)
+		kchi = pchi.residue_field()
+		kf = phibar.codomain()
+		Kf,phi = f.FC_field()
+		pf = Kf.prime_above(p)
+		kf_global = pf.residue_field()
+		j = Hom(kf_global,kf)[0]
+		H = Hom(Qchi,Kf)
+		z = Qchi.gen()
+		found = false
+		for phi in H:
+			if phibar(kchi(z)) == j(kf_global(phi(z))):
+				found = true
+				break
+		assert found,"No map phi found"
+
+		# Uniquely lifting mod p eigenvalues to roots of min polys
+		evs = {}
+		for q in hecke.keys():
+			fq = hecke[q][0]
+			rs = hom_to_poly(fq,phi).roots()
+			done = false
+			possible_lifts = [r[0] for r in rs if evs_modp[q] == j(kf_global(r[0]))]
+			assert len(possible_lifts)>0, "no congruent root found "+str(rs)+str(fq)
+			assert len(possible_lifts)==1, "lift not unique!"
+			evs[q] = possible_lifts[0]
+
+		R = PowerSeriesRing(Kf,'q')
+		q = R.gens()[0]
+		ans = 0
+		for n in range(1,strong_sturm):
+			ans += an(evs,n,chi,phi) * q**n
+
+		return ans,phi,fail,need_more_primes
+	
+	def multiplier(self,p):
+		"""returns 2 if p does not divide the level and 1 if it does"""
+		if self.neben().modulus() % p != 0:
+			return 2
 		else:
-			e = 1
-		##!! why doesn't this go on forever??
-		while W.dimension() > e:		
-			if q != p or N % p == 0:
-				output(log,verbose,2,"-in form_qexp cutting down to 2-dimensional space with q="+str(q))
-				T = M.hecke_operator(q)
-				A = T.matrix()
-				A = A.apply_map(phibar)
-				for WW in Ws:
-					A = A.restrict(WW)
-				W = A.left_eigenspaces()[0][1]
-				Ws.append(W)
-			q = next_prime(q)
-
-		fail = (W.dimension() < 2) and (N % p != 0)  
-		if fail:
-			print "failed in ???!"
-			return 0,0,not fail,need_more_primes
-
-		if not fail:
-			output(log,verbose,2,"--finished cutting down to 2-dimensional space.  Computing e-vals now")
-
-			evs_modp = {}
-			hecke = {}
-			evs = {}
-			for q in primes(strong_sturm):
-				output(log,verbose,2,"-in form_qexp computing mod "+str(p)+" eigenvalue at q="+str(q))
-
-				T = M.hecke_operator(q)
-				A = T.matrix()
-				A = A.apply_map(phibar)
-				for WW in Ws:
-					A = A.restrict(WW)
-				if q != p or N % p == 0:
-					assert len(A.charpoly().roots()) == 1,"too many roots"
-					evs_modp[q] = A.charpoly().roots()[0][0]
-				elif N % p != 0: ###!! does this assume mod p mult 1 in that the space is exactly 2 dimensional???
-					assert W.dimension() == 2, "mod p mult 1 failed?"
-					fp = A.charpoly()
-					ap = -fp[1]
-					evs_modp[q] = ap
-
-				hecke[q] = FC.possible_Artin_polys(minpoly_over(evs_modp[q],kchi,phibar),chi,q,p,upper=self.upper_bound())
-				if len(hecke[q]) == 0:
-					return 0,0,false,need_more_primes
-
-	#			print q,hecke[q]
-				if len(hecke[q]) > 1:
-					for g in fs:
-						if g.p() != p:
-							output(log,verbose,2,"--not uniquely determined: using p="+str(g.p())+" to help")
-							Mg = g.space()[0]   ### USING ONLY THE FIRST SPACE HERE!!  IS THIS A PROBLEM???
-	#						Kg,phi_g = g.FC_field()
-							pg = Kf.prime_above(g.p())
-							kg = pg.residue_field()
-							kchi_g = Mg.base_ring()
-							H = Hom(kchi_g,kg)
-							found = false
-							for phibar_g in H:
-								if phibar_g(kchi_g(z)) == kg(phi(z)):
-									found = true
-									break
-							assert found,"no phibar found"
-							fq = Mg.hecke_polynomial(q)
-							if g.p() != q:
-								fq = fq.factor()[0][0]
-								pi_qs = FC.possible_Artin_polys(fq,chi,q,g.p(),upper=self.upper_bound())
-							else:
-								pi_alpha = fq.factor()[0][0]
-								pi_alpha = hom_to_poly(pi_alpha,phibar_g)
-								l,phibar_g_ext = pi_alpha.splitting_field('a',map=true)  ### cgeck here!
-								alpha = hom_to_poly(pi_alpha,phibar_g_ext).roots()[0][0]
-								if N % g.p() != 0:
-									ap = alpha + phibar_g_ext(phibar_g(kchi_g(chi(g.p()))))/alpha
-								else:
-									ap = alpha
-								fp = minpoly_over(ap,kchi_g,compose(phibar_g_ext,phibar_g))
-								pi_qs = FC.possible_Artin_polys(fp,chi,g.p(),g.p(),upper=self.upper_bound())
-	#						print q,pi_qs
-							if len(pi_qs) == 0:
-								fail = true
-								break  ###! LOOKS LIKE I"m NOT BREAKING FAR ENOUGH
-							else:
-								S1 = set(hecke[q])
-								S2 = set(pi_qs)
-								hecke[q] = list(S1.intersection(S2))
-							if len(hecke[q]) == 1:
-								break
-							if len(hecke[q]) == 0:
-								fail = true
-
-	#			print "ans:",hecke[q]
-				if fail:
-					return 0,0,not fail,need_more_primes
-
-				if len(hecke[q]) != 1:
-					need_more_primes = True
-					break
-				else:
-					fq = hecke[q][0]
-					rs = hom_to_poly(fq,phi).roots()
-					done = false
-					j = 0
-					possible_lifts = [r[0] for r in rs if evs_modp[q] == kf(r[0])]
-					assert len(possible_lifts)>0, "no congruent root found "+str(rs)+str(fq)
-					assert len(possible_lifts)==1, "lift not unique!"
-					evs[q] = possible_lifts[0]
-	#				print q,evs_modp[q],evs[q],evs[q].minpoly()
-
-			if not need_more_primes:
-				R = PowerSeriesRing(Kf,'q')
-				q = R.gens()[0]
-				ans = 0
-				for n in range(1,strong_sturm):
-					ans += an(evs,n,chi,phi) * q**n
-
-				return ans,phi,not fail,need_more_primes
-			else:
-				output(log,verbose,1,"Min polys not uniquely determined: need to compute with more primes")
-				return 0,0,not fail,need_more_primes
+			return 1
 
 	def add_data_to_exotic(self):
 		"""adds the exotic forms computed to the global variable EXOTIC

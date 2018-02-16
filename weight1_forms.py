@@ -362,6 +362,35 @@ class weight_one_form(SageObject):
 		K,phi = poly.splitting_field('a',map=true)
 		return K,phi
 
+	def modp_FC_field(self,p,alpha_p=False):
+		""" returns the finite extension of k_chi over which eigenvalues are defined as well as map kchi to this field
+
+		When alpha_p is False, function returns: k_f, phibar where phibar : k_chi to k_f
+		When alpha_p is True, function returns: k_f(alpha_p), phibar, phibar_lf where phibar_lf : k_f to k_f(alpha_p)
+		"""
+		assert self.unique(),"not unique in modp_FC_field"
+
+		ell = self.primes()[0]
+		chi = self.chi()
+		Qchi = self[ell][0].base_ring()
+		pchi = FC.pchi(p,chi)
+		kchi = pchi.residue_field()
+		R = PolynomialRing(kchi,'x')
+		poly = 1
+		for q in self.primes():
+			poly *= R(self[q][0])
+		kf,phibar = poly.splitting_field('a',map=true)
+
+		Rchi = PolynomialRing(kchi,'x')
+		Rf = PolynomialRing(kf,'x')
+		x = Rf.gen()
+		if alpha_p:
+			ap = hom_to_poly(Rchi(self[p][0]),phibar).roots()[0][0]
+			lf,phibar_lf = (x**2-ap*x+phibar(kchi(chi(p)))).splitting_field('b',map=true)
+			return lf,phibar,phibar_lf
+		else:
+			return kf,phibar
+
 	### returns the product of the discriminants of all min polys
 	def disc(self):
 		d = 1

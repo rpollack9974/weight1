@@ -59,7 +59,7 @@ def form_CM_dict(fs,prec,Nmin=None,Nmax=None):
 							CM[chi] += [(act_galois_ps(f,sigma),chi,phi)]
 			else:
 				print "SKIPPING BECAUSE OF BIG GALOIS GROUP"
-			r += 1
+		r += 1
 		if eps.modulus() > Nmax:
 			break 
 
