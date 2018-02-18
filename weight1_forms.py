@@ -51,6 +51,9 @@ class weight_one_form(SageObject):
 		else:
 			self._p = None
 
+	def set_hecke(self,h):
+		self._hecke = h
+
 	def p(self):
 		return self._p
 
@@ -391,6 +394,34 @@ class weight_one_form(SageObject):
 		else:
 			return kf,phibar
 
+	def CM_increase_precision(self,B):
+		"""for a CM form self, this function extends the Hecke data to q < B"""
+		chi = self.chi()
+		for G in CM[chi]:
+			g = G[0]
+			phi = G[2]
+			found = true
+			for q in self.primes():
+				if q <= g.degree():
+					if self[q][0] != minpoly_over(g[q],phi.domain(),phi):
+						found = false
+						break
+			if found:
+				break
+		assert found,"No form found!"
+
+		if g.degree() < B:
+			g = extend_qexpansion(g,chi.change_ring(phi),B)
+		h = {}
+		for q in primes(B):
+			h[q] = [minpoly_over(g[q],phi.domain(),phi)]
+		self.set_hecke(h)
+
+
+
+
+
+
 	### returns the product of the discriminants of all min polys
 	def disc(self):
 		d = 1
@@ -604,7 +635,12 @@ class weight_one_space(SageObject):
 		"""
 		assert self.hecke_multiplicity(h) > 0,"Not in space"
 
-		self._forms.remove(weight_one_form(0,hecke=h))
+		for f in self.forms():
+			if equal_dicts(f.hecke(),h):
+				self._forms.remove(f)
+				break
+
+#		self._forms.remove(weight_one_form(0,hecke=h))
 
 	def remove_hecke_completely(self,h):
 		"""

@@ -9,6 +9,10 @@ FC = weight_one_FC()
 EXOTIC = {}
 STURM = 20
 
+## needed for stupid CM_increase_precision function but makes loading incredibly slow
+# 	attach("sage-instructions.sage")
+# 	load("DATA/dihedral_forms.sage")
+
 def collect_weight_one_data(Nmin,Nmax):
 	ans = []
 	for N in range(Nmin,Nmax+1):
@@ -23,6 +27,8 @@ def collect_weight_one_data(Nmin,Nmax):
 				print "Saving to file"
 				f = open("DATA/weight1.data",'a')
 				f.write('\n'+str(A)+'\n')
+				if not A.is_fully_computed():
+					f.write('NOT FULLY COMPUTED: PROBABLY CM PROBLEM HERE\n')
 				f.write(str(A.exotic_forms())+str('\n'))
 				f.close()
 				print "*******************************************************"

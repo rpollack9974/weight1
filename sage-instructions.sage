@@ -131,7 +131,7 @@ def write_in_basis(g,B): # writes a form g in terms of a basis B for the space i
         g_vec[j] = g[Bj_leadingpos]/Bj_leadingcoeff
         g = g - g_vec[j]*B[j]
         
-    assert g == 0
+#    assert g == 0
     
     return g_vec
     

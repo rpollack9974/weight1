@@ -230,7 +230,7 @@ def decompose_helper_at_q(Ms,q,log=None,verbose=false,doubled=true):
 			if (doubled and e > 1):
 				if g.substitute(Tq).kernel().dimension() >= 2 * g.degree():
 					newMs += [((g**e).substitute(Tq)).kernel()]
-			else:
+			elif not doubled:
 				newMs += [((g**e).substitute(Tq)).kernel()]
 		return newMs + decompose_helper_at_q(Ms[1:len(Ms)+1],q,log=log,verbose=verbose,doubled=doubled)
 	else:

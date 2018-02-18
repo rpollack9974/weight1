@@ -59,7 +59,7 @@ class wt1(SageObject):
 	self._exotic_forms = list of exotic forms.  precisely, ordered pairs (f,phi) where phi:Q(chi)-->K_f
 	self._verbose = a number 0,1,2,3...   The higher the number mthe more info is displayed.
 	"""
-	def __init__(self,chi,compute=True,verbose=0):
+	def __init__(self,chi,compute=True,verbose=0,just_CM=False):
 		self._neben = chi
 		self._Qchi = chi.base_ring()
 		if self._Qchi == QQ:
@@ -83,6 +83,10 @@ class wt1(SageObject):
 		self._exotic_forms = []
 
 		self._verbose = verbose
+
+		if just_CM:
+			self.compute_CM()
+			return
 
 		if compute:
 			self.compute_space()
@@ -120,7 +124,10 @@ class wt1(SageObject):
 			self.add_data_to_exotic()
 			return 
 
-		self.excise_lower_bound_forms(tag="CM")
+		bool = self.excise_lower_bound_forms(tag="CM")
+		if bool:
+
+			self.compute_space
 		if self.is_fully_computed():
 			self.add_data_to_exotic()
 			return
@@ -154,14 +161,10 @@ class wt1(SageObject):
 	def set_upper_bound(self,U):
 		"""sets the upper bound to U"""
 		self._upper = U
-		if self.upper_bound() == self.lower_bound():
-			self.set_to_fully_computed()
 
 	def set_lower_bound(self,L):
 		"""sets the lower bound to L"""
 		self._lower = L
-		if self.upper_bound() == self.lower_bound():
-			self.set_to_fully_computed()
 
 	def verbose_level(self):
 		"""returns the current verbose level of the space"""
@@ -227,6 +230,8 @@ class wt1(SageObject):
 		When there is at least one unique space, this returns the sum over all forms f of that unique space of the 
 		minimum multiplicity of f over all unique spaces
 		"""
+		if self.num_spaces() == 0:
+			return Infinity
 		U = min([S.num_forms() for S in self.spaces()])
 		if not self.is_unique():
 			self.set_upper_bound(U)
@@ -393,6 +398,8 @@ class wt1(SageObject):
 		"""computes the current lower and upper bounds on the space of weight 1 forms"""
 		self.compute_upper_bound()
 		self.compute_lower_bound()
+		if self.upper_bound() == self.lower_bound():
+			self.set_to_fully_computed()
 
 	def check_local_constraints(self):
 		"""checks that there are no local obstructions to weight 1 exotic forms existing
@@ -459,7 +466,7 @@ class wt1(SageObject):
 					### oldspan returns 3-tuples: (form,phi,multiplicity)
 					for g in olds:
 						self.add_old_exotic(g)
-		self.compute_lower_bound()
+		self.compute_bounds()
 
 	def compute_CM(self):
 		"""Computes all of the CM forms which contribute to S_1(N,chi)^new
@@ -487,7 +494,39 @@ class wt1(SageObject):
 					### oldspan returns 3-tuples: (form,phi,multiplicity)
 					for g in olds:
 						self.add_CM(g)
-		self.compute_lower_bound()
+		self.compute_bounds()
+
+	def extend_CM_data(self,B):
+		"""extends Hecke data in each CM form to primes < B"""
+		chi = self.neben()
+		N = chi.modulus()
+		Nc = chi.conductor()
+		
+		extended_CM = []
+		for d in divisors(N/Nc):
+			G_old = DirichletGroup(Nc * d)
+			Nt = N / (Nc * d)
+			chi_old = G_old(chi)
+			chi_old = chi_old.minimize_base_ring()
+			if CM.has_key(chi_old):
+				for F in CM[chi_old]:
+					f = F[0]
+					phi = F[2]
+					print "A",f,phi
+					f = extend_qexpansion(f,chi_old.change_ring(phi),B)
+					olds = oldspan(f,N,chi_old,phi,sturm=B)
+					### oldspan returns 3-tuples: (form,phi,multiplicity)
+					for g in olds:
+						extended_CM += [g]
+
+		keep = []
+		for F in extended_CM:
+			for G in self.CM():
+				D = max(G[0].keys())+1
+				if [F[0][n] for n in primes(D)] == [G[0][n] for n in primes(D)]:
+					keep += [F]
+					break
+		self.set_CM(keep)
 
 	def next_good_prime(self):
 		"""returns the next prime not yet used in mod p computations (and which is not supercuspidal)
@@ -612,7 +651,6 @@ class wt1(SageObject):
 		chi = self.neben()
 		N = chi.modulus()
 		Qchi = self.Qchi()
-		success = true
 		hecke_used = []
 		if tag == "CM":
 			forms = self.CM()
@@ -621,6 +659,8 @@ class wt1(SageObject):
 
 		if len(forms) > 0:
 			self.output(5,"We now remove "+str(len(forms))+" "+tag+" form(s)")
+		forms_to_remove = []
+		success = true
 		for F in forms:
 			f = F[0]
 			self.output(4,"Trying to remove "+tag+" form "+str(f))
@@ -647,56 +687,90 @@ class wt1(SageObject):
 						if modp_mult == lb_mult * dp:
 							### multiplicity exactly correct so we can throw away these CM forms safely
 							self.output(4,"can safely remove the "+tag+" form "+str(f))
-							self.fully_excise_form(h,tag=tag)
+							forms_to_remove += [h]
+#							self.fully_excise_form(h,tag=tag)
 							excised = true
 							break
 						if modp_mult == 0:
 							assert tag == "CM","old exotic form not present"
 							self.output(4,"form already removed via a congruence or galois conjugate (hopefully)")
-							self.fully_excise_form(h,tag=tag)
+							forms_to_remove += [h]
+#							self.fully_excise_form(h,tag=tag)
 							excised = true
 							break
+				if not excised:
+					success = false
 				if not excised and tag == "CM":
-					self.output(4,"too many forms found --- checking up to strong_sturm for CM with p="+str(p)+" to prove congruence")
-					#! never programmed here up to strong_sturm
+					self.output(4,"too many forms found --- will check later to strong_sturm for CM with p="+str(p)+" to prove congruence")
 					### there are potentially forms congruent to this CM form in weight p which don't come from weight 1
 					### but we now are careful and check to the sturm bound to prove this congruence
-					p,bool = self.good_CM_cut_out_prime()
-					assert bool,"need to program when there is no good prime here"
-					print "using p =",p
-					S = self.space_at_p(p)
-					strong_sturm = S[0].space()[0].sturm_bound()
-					h = {}
-					for q in f.keys():
-						if q < sturm:
-							h[q] = [minpoly_over(f[q],Qchi,phi)]
-					hp = deepcopy(h)
-					if hp.has_key(p):
-						hp.pop(p)
-					dp = max_degree(hp)
-#					e = self.multiplier(p)
-					e = 1
-					modp_mult = self.modp_mult_hecke_system(p,hp)
-					modp_mult_form = self.modp_mult_form(p,f,phi,modp_mult)
-#					print "(modp_mult_form,e,dp,modp_mult) =",(modp_mult_form,e,dp,modp_mult)
-					assert modp_mult_form * e * dp <= modp_mult, "something wrong here"
-					if modp_mult_form * e * dp == modp_mult:
-						self.output(4,"Found that the "+str(modp_mult_form*e*dp)+" CM forms fill up the "+str(modp_mult)+"-dimensional generalized eigenspace")
-					 	self.output(4,"Can remove the CM form "+str(f))
-					 	self.fully_excise_form(h,tag="CM")
-					else:
-					 	self.output(4,"Couldn't remove the CM form "+str(f))
-					 	success = false
-				elif not excised:
-					success = false
-		assert success,"failed in CM/old removal"
-		if len(forms) > 0:
+
+
+		for h in forms_to_remove:
+			self.fully_excise_form(h,tag=tag)
+		if success:
 			if tag == "CM":
 				self.output(4,"All CM forms removed")
 			else:
 				self.output(4,"All old exotic forms removed")
+			print "SS",self.spaces()
+			print "SS",self.is_fully_computed()
+			print "SS",self.old_exotic()
+			print "L",self.lower_bound()
+			print "U",self.upper_bound()
+			self.compute_bounds()	
+			print "L",self.lower_bound()
+			print "U",self.upper_bound()
+			print "TT",self.spaces()
+			print "TT",self.is_fully_computed()
+			return True
+		elif tag == "old_exotic":
+			print "tag",tag
+			print "forms",forms
+			assert 0==1,"failed to remove old_exotic"
+			return False #! need to program this case!!
+
+
+		### only CM case remains with forms not yet removed
+		p,bool = self.good_CM_cut_out_prime()
+		while not bool:
+			self.use_new_prime()
+			p,bool = self.good_CM_cut_out_prime()
+#		assert bool,"need to program when there is no good prime here" #! HERE
+		print "using p =",p
+		S = self.space_at_p(p)
+		strong_sturm = S[0].space()[0].sturm_bound()
+		self.extend_CM_data(strong_sturm)
+		for F in self.CM():
+			f = F[0]
+			phi = F[1]
+			self.output(4,"Trying (again) to remove "+tag+" form "+str(f))
+			h = {}
+			for q in f.keys():
+				h[q] = [minpoly_over(f[q],Qchi,phi)]
+			hp = deepcopy(h)
+			if hp.has_key(p):
+				hp.pop(p)
+			dp = max_degree(hp)
+			modp_mult = self.modp_mult_hecke_system(p,hp)
+			modp_mult_form = self.modp_mult_form(p,f,phi,modp_mult)
+#					print "(modp_mult_form,e,dp,modp_mult) =",(modp_mult_form,e,dp,modp_mult)
+			assert modp_mult_form * dp <= modp_mult, "something wrong here"
+			if modp_mult_form * dp == modp_mult:
+				self.output(4,"Found that the "+str(modp_mult_form*dp)+" CM forms fill up the "+str(modp_mult)+"-dimensional generalized eigenspace")
+			 	self.output(4,"Can remove the CM form "+str(f))
+			 	self.fully_excise_form(h,tag="CM")
+			else:
+			 	self.output(4,"Couldn't remove the CM form "+str(f))
+#		assert len(self.CM())==0,"failed in CM removal"
+		if len(self.CM()) > 0:
+			s = open("DATA/CM_fail",'a')
+			s.write(str(chi)+'\n')
+			s.close()
+		else:
+			self.output(4,"All CM forms removed")
 		self.compute_bounds()
-		return success
+		return True
 
 	def good_CM_cut_out_prime(self):
 		"""returns an odd prime which yielded a space with unique min polys"""
@@ -814,6 +888,7 @@ class wt1(SageObject):
 	## removes h from all unique spaces and from CM field
 	def fully_excise_form(self,h,tag=None):
 		"""fully removes the Hecke eigensystem h from all mod p spaces as well as from CM or old_exotic based on tag"""
+		print "fully_excising",h,tag
 		for S in self.spaces():
 			if S.unique():
 				while S.hecke_multiplicity(h) > 0:
@@ -832,6 +907,8 @@ class wt1(SageObject):
 			for q in h.keys():
 				hf[q] = [minpoly_over(f[q],self.Qchi(),phi)]
 			if hf != h:
+				print "Keeping",F
+				print "Compared",hf,"and",h
 				new_list += [F]
 		if tag == "CM":
 			self.set_CM(new_list)
@@ -871,23 +948,26 @@ class wt1(SageObject):
 		self.output(5,"Running through remaining forms and verifying that they come from weight 1")
 		while not self.is_fully_computed():
 			S = self.unique_space()
-			f = S[0]
-			g = self.good_form_for_qexp(f)
-			self.output(5,"Working with the form: "+str(g))
-			fq,phi,fail,need_more_primes = self.form_qexp(g)
-			if fail:
-				self.fully_excise_form(f.hecke())
-			elif not need_more_primes:
-				bool = self.verify_q_expansion(fq,phi)
-				if bool:
-					fqs = galois_conjugates(fq,self.neben(),phi)
-					for data in fqs:
-						self.add_exotic_form(data)
-				##!! need to check multiplicity here --- this is cheating!
-				self.fully_excise_form(f.hecke())
-			if need_more_primes:
-				self.use_new_prime()
-			self.compute_bounds()
+			if S.num_forms() > 0:
+				f = S[0]
+				g = self.good_form_for_qexp(f)
+				self.output(5,"Working with the form: "+str(g))
+				fq,phi,fail,need_more_primes = self.form_qexp(g)
+				if fail:
+					self.fully_excise_form(f.hecke())
+				elif not need_more_primes:
+					bool = self.verify_q_expansion(fq,phi)
+					if bool:
+						fqs = galois_conjugates(fq,self.neben(),phi)
+						for data in fqs:
+							self.add_exotic_form(data)
+					##!! need to check multiplicity here --- this is cheating!
+					self.fully_excise_form(f.hecke())
+				if need_more_primes:
+					self.use_new_prime()
+				self.compute_bounds()
+			else:
+				break
 		return 
 
 	def verify_q_expansion(self,fq,phi):
@@ -1150,6 +1230,11 @@ class wt1(SageObject):
 		The data for EXOTIC[sigma chi] is also added for each sigma in Gal(Q(chi)/Q).
 		"""
 		chi = self.neben()
+		Qchi = self.Qchi()
+		G = Qchi.galois_group()
+		for sigma in G:
+			chi_sigma = act_galois_char(chi,sigma)
+			EXOTIC[chi_sigma] = []
 		for F in self.exotic_forms():
 			f = F[0]
 			phi = F[1]
@@ -1160,7 +1245,11 @@ class wt1(SageObject):
 			for sigma in G:
 				chi_sigma = act_galois_char(chi.change_ring(phi),sigma)
 				chi_sigma,bool = normalize_character(chi_sigma)
-				assert bool,"ugh"
+				if not bool:
+					print "writing to file"
+					s = open("DATA/bad_characters",'a')
+					s.write(str(chi_sigma)+str('\n'))
+					s.close()
 				data = [act_galois_ps(f,sigma),chi_sigma,compose(sigma,phi)]
 				if not EXOTIC.has_key(chi_sigma):
 					EXOTIC[chi_sigma] = []
@@ -1213,7 +1302,7 @@ def supercuspidal(chi,ell):
 ## the span of {f(d'z) : d' | N/(Nc * d) } 
 ## -phi is a map from Q(chi) to K_f
 ## -m is the multiplicity of the eigenvalue
-def oldspan(f,N,chi,phi):
+def oldspan(f,N,chi,phi,sturm=None):
 	Nc = chi.conductor()
 	d = chi.modulus() / Nc
 	L = f.base_ring()
@@ -1223,7 +1312,8 @@ def oldspan(f,N,chi,phi):
 	R = PolynomialRing(Qchi,'x')
 	x = R.gen()
 	Nt = N / (Nc * d)
-	sturm = STURM
+	if sturm == None:
+		sturm = STURM
 
 	h = {}
 	for ell in primes(sturm):
