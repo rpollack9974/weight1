@@ -134,7 +134,6 @@ class EigenDecomp(SageObject):
 				if len(h0[q]) == 0:
 					fail = true
 
-		###!! why exclude p|N here???
 		if exclude.count(p) == 0:
 			assert N % p == 0 or len(h[p].factor()) <= 2, "have not decomposed far enough (seen at p)"
 			assert N % p != 0 or len(h[p].factor()) <= 1, "have not decomposed far enough (seen at p)"

@@ -10,8 +10,8 @@ EXOTIC = {}
 STURM = 20
 
 ## needed for stupid CM_increase_precision function but makes loading incredibly slow
-# 	attach("sage-instructions.sage")
-# 	load("DATA/dihedral_forms.sage")
+attach("sage-instructions.sage")
+load("DATA/dihedral_forms.sage")
 
 def collect_weight_one_data(Nmin,Nmax):
 	ans = []
@@ -19,9 +19,10 @@ def collect_weight_one_data(Nmin,Nmax):
 		G = DirichletGroup(N)
 		Gs = G.galois_orbits()
 		for chi in Gs:
+			psi = chi[0].minimize_base_ring()
 			print "---------------------------------------------------------"
-			print "Trying",chi[0].minimize_base_ring()
-			A = wt1(chi[0].minimize_base_ring(),verbose=5)
+			print "Trying",psi
+			A = wt1(psi,verbose=5)
 			if len(A.exotic_forms()) > 0:
 				ans += [A]
 				print "Saving to file"

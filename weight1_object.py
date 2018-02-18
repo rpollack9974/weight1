@@ -416,7 +416,6 @@ class wt1(SageObject):
 			self.add_bad_prime(Infinity)
 			self.set_to_locally_constrained()
 			self.output(5,"Character is even")
-
 		N = chi.modulus()
 		for ell in prime_divisors(N):
 			if steinberg(chi,ell):
@@ -512,7 +511,6 @@ class wt1(SageObject):
 				for F in CM[chi_old]:
 					f = F[0]
 					phi = F[2]
-					print "A",f,phi
 					f = extend_qexpansion(f,chi_old.change_ring(phi),B)
 					olds = oldspan(f,N,chi_old,phi,sturm=B)
 					### oldspan returns 3-tuples: (form,phi,multiplicity)
@@ -713,20 +711,9 @@ class wt1(SageObject):
 				self.output(4,"All CM forms removed")
 			else:
 				self.output(4,"All old exotic forms removed")
-			print "SS",self.spaces()
-			print "SS",self.is_fully_computed()
-			print "SS",self.old_exotic()
-			print "L",self.lower_bound()
-			print "U",self.upper_bound()
 			self.compute_bounds()	
-			print "L",self.lower_bound()
-			print "U",self.upper_bound()
-			print "TT",self.spaces()
-			print "TT",self.is_fully_computed()
 			return True
 		elif tag == "old_exotic":
-			print "tag",tag
-			print "forms",forms
 			assert 0==1,"failed to remove old_exotic"
 			return False #! need to program this case!!
 
