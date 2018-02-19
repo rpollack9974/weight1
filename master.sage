@@ -17,7 +17,17 @@ EXOTIC = {}
 EXOTIC_PURE = {}
 STURM = 20
 
-## needed for stupid CM_increase_precision function but makes loading incredibly slow
+## The global variable EXOTIC holds the data of the exotic forms computed so far.  It is used
+## This data is used when oldforms are computed recursively.  
+## EXOTIC is a dictionary which maps a character to 3-tuple (q-expansion, character, phi: Q(chi)-->K_f).  
+## Not sure why the character is be included in this data when it itself is the key.
+## Notes:
+##
+## 		1) When data for chi is recorded, the Galois conjugate data for all Galois conjugates of chi is recorded
+##		2) When a space is eliminated for local reasons this is not recorded.
+
+## EXOTIC_PURE is a dictionary that contains all of the data of the forms computed.  It's keys are only the
+## characters which have exotic forms and does not include the galois conjugate character information.
 
 def collect_weight_one_data(Nmin,Nmax):
 	t = cputime()

@@ -65,8 +65,3 @@ def form_CM_dict(fs,prec,Nmin=None,Nmax=None):
 
 	return CM
 
-##chi1 minimal
-def compare_chars(chi1,chi2):
-	K1 = chi1.base_ring()
-	K2 = chi2.base_ring()
-	

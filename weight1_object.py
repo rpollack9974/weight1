@@ -260,7 +260,7 @@ class wt1(SageObject):
 		When the discriminant of a polynomial is not divisible by p, then the roots of this polynomial are determined
 		by their reduction mod p.  We need such a prime to be able to lift from char p to char 0.		
 		"""
-		primes_used = self.primes_used()
+		primes_used = self.unique_primes_used()
 		S = self.unique_space()
 		unramified_prime = true
 		for f in S:
@@ -284,6 +284,10 @@ class wt1(SageObject):
 	def primes_used(self):
 		"""returns the list of primes used so far in mod p computations"""
 		return [S.p() for S in self.spaces()]
+
+	def unique_primes_used(self):
+		"""returns the list of primes used so far in mod p computations that led to unique spaces"""
+		return [S.p() for S in self.spaces() if S.unique()]
 
 #######################
 	def CM(self):
@@ -542,8 +546,11 @@ class wt1(SageObject):
 			p = 2
 		else:
 		    p = next_prime(max(primes_used))
-		while N.valuation(p) != Nc.valuation(p):
+		Qchi = self.Qchi()
+		pp = Qchi.prime_above(p)
+		while N.valuation(p) != Nc.valuation(p) or pp.residue_field().degree() != 1:
 			p = next_prime(p)
+			pp = Qchi.prime_above(p)
 
 		return ZZ(p)
 
@@ -912,6 +919,7 @@ class wt1(SageObject):
 		d = f.disc()
 		found = false
 		for S in self.spaces():
+			print "A",S.p(),S.unique(),d%S.p()
 			if S.unique() and d % S.p() != 0:
 				found = true
 				break
