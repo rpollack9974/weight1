@@ -919,7 +919,6 @@ class wt1(SageObject):
 		d = f.disc()
 		found = false
 		for S in self.spaces():
-			print "A",S.p(),S.unique(),d%S.p()
 			if S.unique() and d % S.p() != 0:
 				found = true
 				break
@@ -927,6 +926,16 @@ class wt1(SageObject):
 		for g in S:
 			if g == f:
 				return g
+
+	def find_integral_basis(self):
+		chi = self.neben()
+		N = chi.modulus()
+		self.output(5,"Computing integral basis of weight 2 space")
+		S = ModularSymbols(chi**2,2,1).cuspidal_subspace()
+		r = 2
+		strong_sturm = ceil(Gamma0(N).index() / 3)+1  ###! CHECK THIS!!!!
+		B = S.q_expansion_basis(strong_sturm)
+		return B
 
 	def verify_remaining_forms(self):
 		"""Takes each remaining form and attempts to produce a bonafide weight 1 q-expansion
@@ -948,11 +957,13 @@ class wt1(SageObject):
 				f = S[0]
 				g = self.good_form_for_qexp(f)
 				self.output(5,"Working with the form: "+str(g))
-				fq,phi,fail,need_more_primes = self.form_qexp(g)
+				B = self.find_integral_basis()
+				weak_sturm = max([b.valuation() for b in B]) + 1
+				fq,phi,fail,need_more_primes = self.form_qexp(g,weak_sturm)
 				if fail:
 					self.fully_excise_form(f.hecke())
 				elif not need_more_primes:
-					bool = self.verify_q_expansion(fq,phi)
+					bool = self.verify_q_expansion(fq,phi,B)
 					if bool:
 						fqs = galois_conjugates(fq,self.neben(),phi)
 						for data in fqs:
@@ -966,7 +977,7 @@ class wt1(SageObject):
 				break
 		return 
 
-	def verify_q_expansion(self,fq,phi):
+	def verify_q_expansion(self,fq,phi,B):
 		"""verifies that the q-expansion fq comes from a bonafide weight 1 form
 
 		fq is a q-expansion in with coefficients in K_f
@@ -974,16 +985,21 @@ class wt1(SageObject):
 		"""
 		chi = self.neben()
 		sturm = ceil(Gamma0(chi.modulus()).index()/3) ##! IS THIS RIGHT????
+		m = max([b.valuation() for b in B])
 
-		S = ModularSymbols(chi**2,2,1).cuspidal_subspace()
-		B = S.q_expansion_basis(sturm)
-		g = fq * E1chi(chi,phi,sturm)
-		bool = is_in(g,S,phi,sturm)
-		print "f E_1(chi) test is: "+str(bool)
-		if bool:
-			bool = is_in(fq**2,S,phi,sturm)
-			print "f^2 test is: "+str(bool)
-			print "Weight 1 form: "+str(fq)
+		g = fq * E1chi(chi,phi,m)
+		g = extend(g,B,phi)
+		Kf = g[1].parent()
+		R = PowerSeriesRing(Kf,'q',default_prec=sturm)
+		f = R(g / E1chi(chi,phi,sturm))
+
+		bool = is_in(f**2,B,phi,sturm)
+		self.output(5,"f^2 test: "+str(bool))
+#		print "f E_1(chi) test is: "+str(bool)
+		# if bool:
+		# 	bool = is_in(fq**2,S,phi,sturm)
+		# 	print "f^2 test is: "+str(bool)
+		# 	print "Weight 1 form: "+str(fq)
 
 		return bool
 
@@ -1012,10 +1028,12 @@ class wt1(SageObject):
 		for q in ps:
 			f_q = hom_to_poly(Rchi(f[q][0]),phibar_full)
 			T = M.hecke_operator(q)
+			print q,T.charpoly().factor()
 			true_f_q = T.charpoly()
+			print q, true_f_q
 			### need now to find gcd of f_q and true_f_q to find right eigenvalue to pick
 			### but when q=p, we need to look at alpha_p instead
-			if q == p:
+			if q == p and N % p != 0:
 				possible_a_ps = f_q.roots()
 				# pass to ordinary subspace
 				while possible_a_ps.count(0) > 0:
@@ -1090,6 +1108,7 @@ class wt1(SageObject):
 				else:
 					evs_modp[q] = [y for y in kf if phibar_lf(y)==alpha][0] # a_p is in k_f and not l_f
 			pi_q = minpoly_over(evs_modp[q],kchi,phibar)
+#			print pi_q,q,p,self.upper_bound()
 			hecke[q] = FC.possible_Artin_polys(pi_q,chi,q,p,upper=self.upper_bound())
 			self.output(100,"With prime "+str(q)+" found "+str(hecke[q]))
 			if len(hecke[q]) == 0:
@@ -1134,7 +1153,7 @@ class wt1(SageObject):
 
 		return evs_modp,hecke,fail,need_more_primes
 
-	def form_qexp(self,f):
+	def form_qexp(self,f,sturm):
 		"""computes the q-expansion of the Hecke-eigensystem f
 
 		Returns 4 items: 
@@ -1149,24 +1168,24 @@ class wt1(SageObject):
 		chi = self.neben()
 		Qchi = self.Qchi()
 		N = chi.modulus()
-		strong_sturm = ceil(Gamma0(N).index() / 3)  ###! CHECK THIS!!!!
+#		strong_sturm = ceil(Gamma0(N).index() / 3)  ###! CHECK THIS!!!!
 		need_more_primes = false
 
 		### We form the needed mod p modular symbol eigenspace on which Hecke acts by a scalar
-		self.output(5,"Cutting out eigenspace")
+		self.output(5,"Cutting out eigenspace with p="+str(p))
 		M,phibar,phibar_lf = self.cut_out_eigenspace(f)
 		if M.dimension() == 0:
 			fail = true
 			return 0,0,fail,need_more_primes
 		if M.dimension() > 1:
-			self.output(5,"Too big --- cutting out eigenspace again to strong_sturm")
-			M,phibar,phibar_lf = self.cut_out_eigenspace(f)
+			self.output(5,"Too eigenspace too big")
+			assert 0==1,"didn't cut down far enough.  need bigger sturm"
 		self.output(5,"--finished cutting down.  Computing e-vals now")
 
 		### Simulateously extracting the mod p eigenvalues from this space and finding Artin minimal polynomials
 		### that lifts of these mod p eigenvalues satisfy.  This may involve combining mod p information for 
 		### various p and may prove to show that the form is actually now Artin
-		evs_modp,hecke,fail,need_more_primes = self.extract_modp_evs_and_hecke_polys(f,M,phibar,phibar_lf,strong_sturm)
+		evs_modp,hecke,fail,need_more_primes = self.extract_modp_evs_and_hecke_polys(f,M,phibar,phibar_lf,sturm)
 		if fail or need_more_primes:
 			if need_more_primes:
 				self.output(5,"Min polys not uniquely determined: need to compute with more primes")
@@ -1207,7 +1226,7 @@ class wt1(SageObject):
 		R = PowerSeriesRing(Kf,'q')
 		q = R.gens()[0]
 		ans = 0
-		for n in range(1,strong_sturm):
+		for n in range(1,sturm):
 			ans += an(evs,n,chi,phi) * q**n
 
 		return ans,phi,fail,need_more_primes
@@ -1350,10 +1369,6 @@ def oldspan(f,N,chi,phi,sturm=None):
 	return v
 
 
-
-
-
-
 def combine(all_olds,olds):
 	all_forms = [f[0] for f in all_olds]
 	for r in range(len(olds)):
@@ -1379,7 +1394,7 @@ def E1chi(chi,phi,acc):
 
 	ans = R(-phi(chi.bernoulli(1))/2)
 
-	for n in range(1,acc):
+	for n in range(1,acc+1):
 		coef = 0
 		for d in divisors(n):
 			coef += phi(chi(d))
@@ -1389,16 +1404,17 @@ def E1chi(chi,phi,acc):
 
 #	return phi(-chi.bernoulli(1)/2) + form_q_exp(d,acc,chi)
 
+
 ## is the q-expansion f in the space S
-def is_in(f,S,phi,acc):
+def is_in(f,B,phi,acc):
 	L = f.parent().base_ring()
 #	K = S.base_ring()
 #	phi = Hom(K,L).an_element()
 	q = f.parent().gens()[0]
 
-	assert acc > S.dimension()+2,"not enough accuracy"
+#	assert acc > S.dimension()+2,"not enough accuracy"
 
-	B = S.q_expansion_basis(acc)
+#	B = S.q_expansion_basis(acc)
 
 	C = []
 	for b in B:
@@ -1493,3 +1509,17 @@ def act_galois_ps(f,sigma):
 	for n in range(f.degree()+1):
 		ans += sigma(f[n]) * q**n
 	return ans
+
+def extend(g,B,phi):
+	R = g.parent()
+	q = R.gen()
+	C = []
+	for b in B:
+		C += [sum([phi(b.list()[j]) * q**j for j in range(len(b.list()))])]
+	v = [g[C[a].valuation()] * C[a] for a in range(len(C))]
+	return sum(v)
+
+
+
+
+
