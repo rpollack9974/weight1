@@ -2,6 +2,8 @@
 ### Trivial TO DO
 # minpoly_over takes (alpha,K,phi) but K is the domain of phi
 
+### Spped ups
+# think about size of residue field
 
 """ 
 global variables in use:
@@ -875,7 +877,6 @@ class wt1(SageObject):
 	## removes h from all unique spaces and from CM field
 	def fully_excise_form(self,h,tag=None):
 		"""fully removes the Hecke eigensystem h from all mod p spaces as well as from CM or old_exotic based on tag"""
-		print "fully_excising",h,tag
 		for S in self.spaces():
 			if S.unique():
 				while S.hecke_multiplicity(h) > 0:
@@ -1222,9 +1223,12 @@ class wt1(SageObject):
 		for sigma in G:
 			chi_sigma = act_galois_char(chi,sigma)
 			EXOTIC[chi_sigma] = []
+		if self.num_exotic_forms() > 0:
+			EXOTIC_PURE[chi] = []
 		for F in self.exotic_forms():
 			f = F[0]
 			phi = F[1]
+			EXOTIC_PURE[chi] += [[f,chi,phi]]
 			Kf = f.base_ring()
 			if Kf == QQ:
 				Kf = CyclotomicField(2)

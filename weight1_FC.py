@@ -91,6 +91,7 @@ class weight_one_FC(SageObject):
 	##
 	## galois bound given by degree Artin P must satisfy degree(P) <= [Q(a_ell):Q] / gcd([Q(a_ell):Q],[Q(chi):Q])
 	def possible_Artin_polys(self,g,chi,ell,p,upper=None):
+#		print "In possible with:",(g,ell,p,upper)
 		N = chi.modulus()
 		Nc = chi.conductor()
 		Nt = N / Nc

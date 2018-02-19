@@ -86,15 +86,31 @@ def decompose(M,chi,sturm,exclude,p,log=None,verbose=false):
 
 def decompose_helper(Ms,chi,sturm,exclude,p,log=None,verbose=false,doubled=true):
 	newMs = Ms
-	for q in primes(sturm):
+
+	# makes sure the first prime used is not supercuspidal (this is probably better)
+	primes_to_use = [q for q in range(sturm) if is_prime(q)]
+	for r in range(len(primes_to_use)):
+		q = primes_to_use[r]
+		if not supercuspidal(chi,q):
+			break
+	primes_to_use.remove(q)
+	primes_to_use = [q] + primes_to_use
+
+	d = sum([M.dimension() for M in Ms])
+	for q in primes_to_use:
 		if exclude.count(q)==0:
-			output(log,verbose,3,"      decomposing with Hecke operator at "+str(q)+"-- dimensions: "+str([newMs[a].dimension() for a in range(len(newMs))]))
-			newMs = decompose_helper_at_q(newMs,chi,q,p,log=log,verbose=verbose,doubled=doubled)
-	if exclude.count(p) > 0:
+			output(log,verbose,3,"      decomposing with Hecke operator at "+str(q)+" -- dimensions: "+str([newMs[a].dimension() for a in range(len(newMs))]))
+			newMs = decompose_helper_at_q(newMs,chi,q,p,total_dim=d,log=log,verbose=verbose,doubled=doubled)
+			if len(newMs) == 0:
+				print "      --all spaces gone"
+				break
+	if exclude.count(p) > 0 and len(newMs) > 0:
+		output(log,verbose,3,"      passing to ordinary subspaces -- dimensions: "+str([newMs[a].dimension() for a in range(len(newMs))]))
 		newMs = ordinary_helper(newMs,p)
+		output(log,verbose,3,"      final dimensions: "+str([newMs[a].dimension() for a in range(len(newMs))]))
 	return newMs
 
-def decompose_helper_at_q(Ms,chi,q,p,log=None,verbose=false,doubled=true):
+def decompose_helper_at_q(Ms,chi,q,p,total_dim=Infinity,log=None,verbose=false,doubled=true):
 	if len(Ms)>0:
 		M = Ms[0]
 		N = M.level()
@@ -105,17 +121,15 @@ def decompose_helper_at_q(Ms,chi,q,p,log=None,verbose=false,doubled=true):
 		for D in fact:
 			g = D[0]
 			e = D[1]
-#			print D
 			if N % p != 0:
-				v = FC.possible_Artin_polys(g,chi,q,p,upper=floor(M.dimension()/2))
+				v = FC.possible_Artin_polys(g,chi,q,p,upper=floor(total_dim/2))
 			else:
-				v = FC.possible_Artin_polys(g,chi,q,p,upper=M.dimension())
+				v = FC.possible_Artin_polys(g,chi,q,p,upper=total_dim)
 			if (len(v) > 0) and (e > 1 or not doubled):
-#				print "projecting"
 				newMs += [((g**e).substitute(Tq)).kernel()]
-#			else:
-#				print "nothing to do"
-		return newMs + decompose_helper_at_q(Ms[1:len(Ms)+1],chi,q,p,log=log,verbose=verbose,doubled=doubled)
+			else:
+				total_dim -= e * g.degree()
+		return newMs + decompose_helper_at_q(Ms[1:len(Ms)+1],chi,q,p,total_dim=total_dim,log=log,verbose=verbose,doubled=doubled)
 	else:
 		return []
 

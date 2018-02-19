@@ -4,16 +4,23 @@ attach("weight1_decompose.py")
 attach("weight1_forms.py")
 attach("modp_space.py")
 
-CM = load("DATA/CM_forms.1-600")
+try: 
+	already_loaded == true
+except NameError:
+	CM = load("DATA/CM_forms.1-600")
+	attach("sage-instructions.sage")
+	load("DATA/dihedral_forms.sage")
+	already_loaded = true
+
 FC = weight_one_FC()
 EXOTIC = {}
+EXOTIC_PURE = {}
 STURM = 20
 
 ## needed for stupid CM_increase_precision function but makes loading incredibly slow
-attach("sage-instructions.sage")
-load("DATA/dihedral_forms.sage")
 
 def collect_weight_one_data(Nmin,Nmax):
+	t = cputime()
 	ans = []
 	for N in range(Nmin,Nmax+1):
 		G = DirichletGroup(N)
@@ -35,6 +42,9 @@ def collect_weight_one_data(Nmin,Nmax):
 				print "*******************************************************"
 				print ans
 				print "*******************************************************"
+				print EXOTIC_PURE
+				save(EXOTIC_PURE,"EXOTIC")
 			else:
-				print "No forms"
+				print "No exotic forms"
+			print "Time:",cputime(t)
 	return ans
