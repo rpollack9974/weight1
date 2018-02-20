@@ -7,8 +7,10 @@ attach("modp_space.py")
 try: 
 	already_loaded == true
 except NameError:
+	print "loading CM dictionary"
 	CM = load("DATA/CM_forms.1-600")
 	attach("sage-instructions.sage")
+	print "loading Buzzard-Lauder CM database"
 	load("DATA/dihedral_forms.sage")
 	already_loaded = true
 
@@ -17,6 +19,11 @@ EXOTIC = {}
 EXOTIC_PURE = {}
 STURM = 20
 RECURSION_LEVEL = 0
+LOG_FILE = "DATA/log_file"
+f = open(LOG_FILE,'w')
+f.write("STARTING COMPUTATION\n")
+f.close()
+
 
 ## The global variable EXOTIC holds the data of the exotic forms computed so far.  It is used
 ## This data is used when oldforms are computed recursively.  
@@ -38,23 +45,30 @@ def collect_weight_one_data(Nmin,Nmax,verbose=0):
 		Gs = G.galois_orbits()
 		for chi in Gs:
 			psi = chi[0].minimize_base_ring()
-			print "---------------------------------------------------------"
-			print "Trying",psi
+			out("---------------------------------------------------------")
+			out("Computing with "+str(psi))
 			A = wt1(psi,verbose=verbose)
 			if len(A.exotic_forms()) > 0:
 				ans += [A]
-				print "Saving to file"
+				out("Saving to file")
 				f = open("DATA/weight1.data",'a')
 				f.write('\n'+str(A)+'\n')
 				if not A.is_fully_computed():
 					f.write('NOT FULLY COMPUTED: PROBABLY CM PROBLEM HERE\n')
 				f.write(str(A.exotic_forms())+str('\n'))
 				f.close()
-				print "*******************************************************"
-				print ans
-				print "*******************************************************"
+				out("*******************************************************")
+				out(str(ans))
+				out("*******************************************************")
 				save(EXOTIC_PURE,"EXOTIC")
 			else:
-				print "No exotic forms"
-			print "Time:",cputime(t)
+				out("No exotic forms")
+			out("Time: "+str(cputime(t)))
 	return ans
+
+def out(str):
+	if LOG_FILE != None:
+		f = open(LOG_FILE,'a')
+		f.write(str+'\n')
+		f.close()
+	print str

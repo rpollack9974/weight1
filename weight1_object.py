@@ -95,18 +95,18 @@ class wt1(SageObject):
 			self.compute_space()
 
 	def __repr__(self):
-		print "Space is fully computed:",self.is_fully_computed()
-		print "Space is locally constrained:",self.is_locally_constrained()
+		self.output(1,"Space is fully computed: "+str(self.is_fully_computed()))
+		self.output(1,"Space is locally constrained: "+str(self.is_locally_constrained()))
 		if self.is_locally_constrained():
-			print "   Steinberg primes:",self.steinberg_primes()
-			print "   Bad RPS primes:",self.bad_rps_primes()
-			print "   All bad primes:",self.bad_primes()
+			self.output(1,"   Steinberg primes: "+str(self.steinberg_primes()))
+			self.output(1,"   Bad RPS primes: "+str(self.bad_rps_primes()))
+			self.output(1,"   All bad primes: "+str(self.bad_primes()))
 		if self.is_fully_computed():
-			print "There are",self.num_exotic_forms(),"exotic form(s)."
+			self.output(1,"There are "+str(self.num_exotic_forms())+" exotic form(s).")
 		else:
-			print "Not fully computed"
-			print "Lower bound =",self.lower_bound()
-			print "Upper bound =",self.upper_bound()
+			self.output(1,"Not fully computed")
+			self.output(1,"Lower bound = "+str(self.lower_bound()))
+			self.output(1,"Upper bound = "+str(self.upper_bound()))
 
 		return repr("Space of weight 1 forms with nebentype "+str(self.neben()))
 
@@ -145,7 +145,7 @@ class wt1(SageObject):
 		need_more_sturm = self.verify_remaining_forms()
 		if need_more_sturm:
 			STURM = STURM + 10
-			print "STARTING OVER WITH STURM =",STURM,"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+			self.output(5,"STARTING OVER WITH STURM = "+str(STURM)+"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 			self = wt1(self.neben(),verbose=self.verbose_level())
 			STURM = STURM - 10
 		self.add_data_to_exotic()
@@ -573,7 +573,7 @@ class wt1(SageObject):
 		chi = self.neben()
 		N = chi.modulus()
 
-		Sp = wt1_space_modp(p,chi,verbose=self.verbose_level())
+		Sp = wt1_space_modp(p,chi,verbose=self.verbose_level(),log=LOG_FILE)
 
 		for Sq in self.spaces():
 			Sp = Sp.intersect(Sq)
@@ -919,8 +919,8 @@ class wt1(SageObject):
 			for q in h.keys():
 				hf[q] = [minpoly_over(f[q],self.Qchi(),phi)]
 			if hf != h:
-				print "Keeping",F
-				print "Compared",hf,"and",h
+#				print "Keeping",F
+#				print "Compared",hf,"and",h
 				new_list += [F]
 		if tag == "CM":
 			self.set_CM(new_list)
@@ -1325,7 +1325,7 @@ class wt1(SageObject):
 				chi_sigma = act_galois_char(chi.change_ring(phi),sigma)
 				chi_sigma,bool = normalize_character(chi_sigma)
 				if not bool:
-					print "writing to file"
+					self.output(5,"writing to file bad character "+str(chi_sigma))
 					s = open("DATA/bad_characters",'a')
 					s.write(str(chi_sigma)+str('\n'))
 					s.close()
@@ -1340,6 +1340,11 @@ class wt1(SageObject):
 	def output(self,verbose,str):
 		if self.verbose_level() >= verbose:
 			print RECURSION_LEVEL*'*' + str
+		if LOG_FILE != None:
+			f = open(LOG_FILE,'a')
+			f.write(RECURSION_LEVEL*'*' + str + '\n')
+			f.close()
+
 
 
 #--------------------
