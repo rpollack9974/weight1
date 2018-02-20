@@ -3,9 +3,9 @@
 # minpoly_over takes (alpha,K,phi) but K is the domain of phi
 
 ### Spped ups
-# think about size of residue field
-# need to figure out how big need to compute q-expansion
-# certainly compute up to dimension first and then intergal basis and then more if needed
+# check up to sturm bound to femove CM or just get more primes?
+# large split p's vs F_p^2's for small p
+# when alpha_p is in F_p^2
 """ 
 global variables in use:
 ------------------------
@@ -669,115 +669,115 @@ class wt1(SageObject):
 		chi = self.neben()
 		N = chi.modulus()
 		Qchi = self.Qchi()
-		hecke_used = []
-		if tag == "CM":
-			forms = self.CM()
-		else:
-			forms = self.old_exotic()
-
-		if len(forms) > 0:
-			self.output(5,"We now remove "+str(len(forms))+" "+tag+" form(s)")
-		forms_to_remove = []
-		success = true
-		for F in forms:
-			f = F[0]
-			self.output(4,"Trying to remove "+tag+" form "+str(f))
-			phi = F[1]
-			lb_mult = F[2]
-			h = {}
-			for q in f.keys():
-				if q < sturm:
-					h[q] = [minpoly_over(f[q],Qchi,phi)]
-			if hecke_used.count(h) == 0:
-				excised = false
-				hecke_used += [h]
-				for S in self.spaces():
-					if S.unique():
-						p = S.p()
-						hp = deepcopy(h)
-						if hp.has_key(p):
-							hp.pop(p)
-						modp_mult = S.hecke_multiplicity(hp)  ###!!! CHECK HERE hp or h!!!!
-						dp = max_degree(hp)
-						self.output(4,"have "+str(modp_mult)+" copies of this form mod "+str(p)+" and am expecting at least "+str(lb_mult*dp))
-						# second condition below can be tripped if CM form is already removed via a congruence
-						assert (modp_mult >= dp * lb_mult) or (modp_mult == 0),"CM/old not found!!"+str(f)+str(self)
-						if modp_mult == lb_mult * dp:
-							### multiplicity exactly correct so we can throw away these CM forms safely
-							self.output(4,"can safely remove the "+tag+" form "+str(f))
-							forms_to_remove += [h]
-#							self.fully_excise_form(h,tag=tag)
-							excised = true
-							break
-						if modp_mult == 0:
-							assert tag == "CM","old exotic form not present"
-							self.output(4,"form already removed via a congruence or galois conjugate (hopefully)")
-							forms_to_remove += [h]
-#							self.fully_excise_form(h,tag=tag)
-							excised = true
-							break
-				if not excised:
-					success = false
-				if not excised and tag == "CM":
-					self.output(4,"too many forms found --- will check later to strong_sturm for CM with p="+str(p)+" to prove congruence")
-					### there are potentially forms congruent to this CM form in weight p which don't come from weight 1
-					### but we now are careful and check to the sturm bound to prove this congruence
-
-
-		for h in forms_to_remove:
-			self.fully_excise_form(h,tag=tag)
-		if success:
+		success = false
+		while not success:
+			hecke_used = []
 			if tag == "CM":
-				self.output(4,"All CM forms removed")
+				forms = self.CM()
 			else:
-				self.output(4,"All old exotic forms removed")
-			self.compute_bounds()	
-			return True
-		elif tag == "old_exotic":
-			assert 0==1,"failed to remove old_exotic"
-			return False #! need to program this case!!
+				forms = self.old_exotic()
 
-
-		### only CM case remains with forms not yet removed
-		p,bool = self.good_CM_cut_out_prime()
-		while not bool:
-			self.use_new_prime()
-			p,bool = self.good_CM_cut_out_prime()
-#		assert bool,"need to program when there is no good prime here" #! HERE
-		print "using p =",p
-		S = self.space_at_p(p)
-		strong_sturm = S[0].space()[0].sturm_bound()
-		self.extend_CM_data(strong_sturm)
-		for F in self.CM():
-			f = F[0]
-			phi = F[1]
-			self.output(4,"Trying (again) to remove "+tag+" form "+str(f))
-			h = {}
-			for q in f.keys():
-				h[q] = [minpoly_over(f[q],Qchi,phi)]
-			hp = deepcopy(h)
-			if hp.has_key(p):
-				hp.pop(p)
-			dp = max_degree(hp)
-			modp_mult = self.modp_mult_hecke_system(p,hp)
-			modp_mult_form = self.modp_mult_form(p,f,phi,modp_mult)
-#					print "(modp_mult_form,e,dp,modp_mult) =",(modp_mult_form,e,dp,modp_mult)
-			assert modp_mult_form * dp <= modp_mult, "something wrong here"
-			if modp_mult_form * dp == modp_mult:
-				self.output(4,"Found that the "+str(modp_mult_form*dp)+" CM forms fill up the "+str(modp_mult)+"-dimensional generalized eigenspace")
-			 	self.output(4,"Can remove the CM form "+str(f))
-			 	self.fully_excise_form(h,tag="CM")
+			if len(forms) > 0:
+				self.output(5,"We now remove "+str(len(forms))+" "+tag+" form(s)")
+			forms_to_remove = []
+			success = true
+			for F in forms:
+				f = F[0]
+				self.output(4,"  Trying to remove "+tag+" form "+str(f))
+				phi = F[1]
+				lb_mult = F[2]
+				h = {}
+				for q in f.keys():
+					if q < sturm:
+						h[q] = [minpoly_over(f[q],Qchi,phi)]
+				if hecke_used.count(h) == 0:
+					excised = false
+					hecke_used += [h]
+					for S in self.spaces():
+						if S.unique():
+							p = S.p()
+							hp = deepcopy(h)
+							if hp.has_key(p):
+								hp.pop(p)
+							modp_mult = S.hecke_multiplicity(hp)  ###!!! CHECK HERE hp or h!!!!
+							dp = max_degree(hp)
+							self.output(4,"    have "+str(modp_mult)+" copies of this form mod "+str(p)+" and am expecting at least "+str(lb_mult*dp))
+							# second condition below can be tripped if CM form is already removed via a congruence
+							assert (modp_mult >= dp * lb_mult) or (modp_mult == 0),"CM/old not found!!"+str(f)+str(self)
+							if modp_mult == lb_mult * dp:
+								### multiplicity exactly correct so we can throw away these CM forms safely
+								self.output(4,"  can safely remove the "+tag+" form "+str(f))
+								forms_to_remove += [h]
+								excised = true
+								break
+							if modp_mult == 0:
+								assert tag == "CM","old exotic form not present"
+								self.output(4,"  form already removed via a congruence or galois conjugate (hopefully)")
+								forms_to_remove += [h]
+								excised = true
+								break
+					if not excised:
+						success = false
+					if not excised:
+						self.output(4,"    too many forms found --- will need to compute mod p with more p (evenutually) --- going on to next form")
+						## there are potentially forms congruent to this CM form in weight p which don't come from weight 1
+						## but we now are careful and check to the sturm bound to prove this congruence
+				else:
+					self.output(5,"    Galois conjugate of form already examined")
+			for h in forms_to_remove:
+				self.fully_excise_form(h,tag=tag)
+			if success:
+				if tag == "CM":
+					self.output(4,"All CM forms removed")
+				else:
+					self.output(4,"All old exotic forms removed")
+				self.compute_bounds()	
+				return True
 			else:
-			 	self.output(4,"Couldn't remove the CM form "+str(f))
-#		assert len(self.CM())==0,"failed in CM removal"
-		if len(self.CM()) > 0:
-			s = open("DATA/CM_fail",'a')
-			s.write(str(chi)+'\n')
-			s.close()
-		else:
-			self.output(4,"All CM forms removed")
-		self.compute_bounds()
+				self.output(5,"Need to make another mod p computation and try again...")
+				self.use_new_prime()
 		return True
+
+# 		### only CM case remains with forms not yet removed
+# 		p,bool = self.good_CM_cut_out_prime()
+# 		while not bool:
+# 			self.use_new_prime()
+# 			p,bool = self.good_CM_cut_out_prime()
+# #		assert bool,"need to program when there is no good prime here" #! HERE
+# 		print "using p =",p
+# 		S = self.space_at_p(p)
+# 		strong_sturm = S[0].space()[0].sturm_bound()
+# 		self.extend_CM_data(strong_sturm)
+# 		for F in self.CM():
+# 			f = F[0]
+# 			phi = F[1]
+# 			self.output(4,"Trying (again) to remove "+tag+" form "+str(f))
+# 			h = {}
+# 			for q in f.keys():
+# 				h[q] = [minpoly_over(f[q],Qchi,phi)]
+# 			hp = deepcopy(h)
+# 			if hp.has_key(p):
+# 				hp.pop(p)
+# 			dp = max_degree(hp)
+# 			modp_mult = self.modp_mult_hecke_system(p,hp)
+# 			modp_mult_form = self.modp_mult_form(p,f,phi,modp_mult)
+# #					print "(modp_mult_form,e,dp,modp_mult) =",(modp_mult_form,e,dp,modp_mult)
+# 			assert modp_mult_form * dp <= modp_mult, "something wrong here"
+# 			if modp_mult_form * dp == modp_mult:
+# 				self.output(4,"Found that the "+str(modp_mult_form*dp)+" CM forms fill up the "+str(modp_mult)+"-dimensional generalized eigenspace")
+# 			 	self.output(4,"Can remove the CM form "+str(f))
+# 			 	self.fully_excise_form(h,tag="CM")
+# 			else:
+# 			 	self.output(4,"Couldn't remove the CM form "+str(f))
+# #		assert len(self.CM())==0,"failed in CM removal"
+# 		if len(self.CM()) > 0:
+# 			s = open("DATA/CM_fail",'a')
+# 			s.write(str(chi)+'\n')
+# 			s.close()
+# 		else:
+# 			self.output(4,"All CM forms removed")
+# 		self.compute_bounds()
+# 		return True
 
 	def good_CM_cut_out_prime(self):
 		"""returns an odd prime which yielded a space with unique min polys"""
@@ -793,6 +793,7 @@ class wt1(SageObject):
 	def modp_mult_hecke_system(self,p,hp):
 		"""returns the dimension of the generalized eigenspace cut out by hp in mod p weight p modular symbols"""
 #		print "modp_mult",p,hp
+		self.output(5,"modp_mult_hecke_system")
 		chi = self.neben()
 		pchi = FC.pchi(p,chi)
 		kchi = pchi.residue_field()
@@ -801,7 +802,9 @@ class wt1(SageObject):
 		for q in hp.keys():
 			Tq = M.hecke_operator(q)
 			M = (R(hp[q][0]).substitute(Tq)**M.dimension()).kernel()
+			self.output(6,"**"+str(q)+": "+str(M.dimension()))
 		M = ordinary_subspace(M,p)
+		self.output(6,"**"+str(p)+": "+str(M.dimension()))
 		return M.dimension()
 
 	def modp_mult_form(self,p,f,phi,modp_mult):
@@ -811,6 +814,7 @@ class wt1(SageObject):
 		phi is a map from Q(chi) to K_f
 		modp_mult is an a prior bound on the dimension 
 		"""
+		self.output(5,"modp_mult_form")
 		sturm = STURM
 		chi = self.neben()
 		N = chi.modulus()
@@ -844,16 +848,17 @@ class wt1(SageObject):
 			M = ModularSymbols(chip,p,1,kf).cuspidal_subspace()
 
 		# cuts out eigenspace away from p (unless p | N in which case p is included as well)
-		for q in primes(sturm):
+		for q in f.keys():
 			if q != p or N % p == 0:
 				Tq = M.hecke_operator(q)
 				M = ((Tq-kf(f[q]))**(2*modp_mult)).kernel()
+				self.output(6,"**"+str(q)+": "+str(M.dimension()))
 
 		# now to handle a_p -- three cases:
 		#	alpha_p = beta_p
 		#	alpha_p different from beta_p and in k_f
 		# 	alpha_p and beta_p conjugate in extension of k_f
-		if p < sturm and N % p != 0:
+		if f.has_key(p) and N % p != 0:
 			Tp  = M.hecke_operator(p)
 			if len(pibar_p.roots()) == 1:
 				alpha = pibar_p.roots()[0][0]
@@ -871,6 +876,7 @@ class wt1(SageObject):
 				a = M.dimension()
 		else:
 			a = M.dimension()
+		self.output(6,"**"+str(p)+": "+str(M.dimension()))
 
 		return a
 

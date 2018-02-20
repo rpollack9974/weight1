@@ -16,6 +16,7 @@ FC = weight_one_FC()
 EXOTIC = {}
 EXOTIC_PURE = {}
 STURM = 20
+RECURSION_LEVEL = 0
 
 ## The global variable EXOTIC holds the data of the exotic forms computed so far.  It is used
 ## This data is used when oldforms are computed recursively.  
@@ -29,7 +30,7 @@ STURM = 20
 ## EXOTIC_PURE is a dictionary that contains all of the data of the forms computed.  It's keys are only the
 ## characters which have exotic forms and does not include the galois conjugate character information.
 
-def collect_weight_one_data(Nmin,Nmax):
+def collect_weight_one_data(Nmin,Nmax,verbose=0):
 	t = cputime()
 	ans = []
 	for N in range(Nmin,Nmax+1):
@@ -39,7 +40,7 @@ def collect_weight_one_data(Nmin,Nmax):
 			psi = chi[0].minimize_base_ring()
 			print "---------------------------------------------------------"
 			print "Trying",psi
-			A = wt1(psi,verbose=5)
+			A = wt1(psi,verbose=verbose)
 			if len(A.exotic_forms()) > 0:
 				ans += [A]
 				print "Saving to file"
@@ -52,7 +53,6 @@ def collect_weight_one_data(Nmin,Nmax):
 				print "*******************************************************"
 				print ans
 				print "*******************************************************"
-				print EXOTIC_PURE
 				save(EXOTIC_PURE,"EXOTIC")
 			else:
 				print "No exotic forms"
