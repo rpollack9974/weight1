@@ -443,6 +443,8 @@ class wt1(SageObject):
 			phi = embedding from Q(chi) to K_f
 			m = dimension of the generalized eigenspace corresponding to this CM form 
 		"""
+		global RECURSION_LEVEL
+
 		self.output(5,"Computing old exotic forms")
 		self.clear_old_exotic()
 		chi = self.neben()
@@ -462,7 +464,9 @@ class wt1(SageObject):
 			if recursive:
 				if not EXOTIC.has_key(chi_old):
 					self.output(3,"Recursively computing with character "+str(chi_old)+". Original level "+str(chi.modulus()))
+					RECURSION_LEVEL += 1
 					wt1(chi_old,verbose=self.verbose_level())
+					RECURSION_LEVEL -= 1
 					self.output(3,"done with the recursion for "+str(chi_old))
 			if EXOTIC.has_key(chi_old) and len(EXOTIC[chi_old]) > 0:
 				for F in EXOTIC[chi_old]:
@@ -789,7 +793,6 @@ class wt1(SageObject):
 		M = ModularSymbols(chi,p,1,kchi).cuspidal_subspace()
 		R = PolynomialRing(kchi,'x')
 		for q in hp.keys():
-			print q,"dim=",M.dimension()
 			Tq = M.hecke_operator(q)
 			M = (R(hp[q][0]).substitute(Tq)**M.dimension()).kernel()
 		M = ordinary_subspace(M,p)
@@ -838,7 +841,6 @@ class wt1(SageObject):
 		for q in primes(sturm):
 			if q != p or N % p == 0:
 				Tq = M.hecke_operator(q)
-				print q,"dim=",M.dimension()
 				M = ((Tq-kf(f[q]))**(2*modp_mult)).kernel()
 
 		# now to handle a_p -- three cases:
@@ -955,6 +957,7 @@ class wt1(SageObject):
 
 		We then add this form and all of its Galois conjugates over Q(chi) to the "exotic_forms" field.
 		"""
+		chi = self.neben()
 		self.output(5,"Running through remaining forms and verifying that they come from weight 1")
 		while not self.is_fully_computed():
 			S = self.unique_space()
@@ -962,12 +965,23 @@ class wt1(SageObject):
 				f = S[0]
 				g = self.good_form_for_qexp(f)
 				self.output(5,"Working with the form: "+str(g))
-				B = self.find_integral_basis()
-				weak_sturm = max([b.valuation() for b in B]) + 2
-				fq,phi,fail,need_more_primes = self.form_qexp(g,weak_sturm)
+
+				## compute first to dimension in weight 2 which is a lower bound for what we ultimately need
+				d = dimension_cusp_forms(chi**2,2)
+				self.output(5," Computing e-vals up to "+str(d))
+				evs,W,phi,fail,need_more_primes = self.find_prime_FCs(g,d)
+				if not fail and not need_more_primes:
+					## if this succeeds, compute now to the true bound given below by weak_sturm
+					B = self.find_integral_basis()
+					weak_sturm = max([b.valuation() for b in B]) + 2  #!
+					self.output(5," Computing e-vals up to "+str(weak_sturm))
+					evs_rest,W,phi,fail,need_more_primes = self.find_prime_FCs(g,weak_sturm,evs=evs,space=W)
+
 				if fail:
 					self.fully_excise_form(f.hecke())
 				elif not need_more_primes:
+					evs = merge_disjoint_dicts(evs,evs_rest)
+					fq = form_qexp_from_evs(evs,chi,phi)
 					bool = self.verify_q_expansion(fq,phi,B)
 					if bool:
 						fqs = galois_conjugates(fq,self.neben(),phi)
@@ -1033,9 +1047,7 @@ class wt1(SageObject):
 		for q in ps:
 			f_q = hom_to_poly(Rchi(f[q][0]),phibar_full)
 			T = M.hecke_operator(q)
-			print q,T.charpoly().factor()
 			true_f_q = T.charpoly()
-			print q, true_f_q
 			### need now to find gcd of f_q and true_f_q to find right eigenvalue to pick
 			### but when q=p, we need to look at alpha_p instead
 			if q == p and N % p != 0:
@@ -1071,7 +1083,7 @@ class wt1(SageObject):
 						break
 		return fs
 
-	def extract_modp_evs_and_hecke_polys(self,f,M,phibar,phibar_lf,strong_sturm):
+	def extract_modp_evs_and_hecke_polys(self,f,M,phibar,phibar_lf,strong_sturm,min_p=None):
 		"""computes mod p eigenvalues in M and if Artin-type finds char 0 Artin min poly lifts
 
 		Input --
@@ -1098,7 +1110,11 @@ class wt1(SageObject):
 		need_more_primes = false
 		fail = false
 		fs = self.all_copies_of_form(f)
-		for q in primes(strong_sturm):
+		if min_p == None:
+			ps = primes(strong_sturm)
+		else:
+			ps = primes(min_p,strong_sturm)
+		for q in ps:
 			self.output(5,"-in extract_hecke_polys computing mod "+str(p)+" eigenvalue at q="+str(q))
 			T = M.hecke_operator(q)
 			if q != p:
@@ -1158,7 +1174,7 @@ class wt1(SageObject):
 
 		return evs_modp,hecke,fail,need_more_primes
 
-	def form_qexp(self,f,sturm):
+	def find_prime_FCs(self,f,sturm,space=None,min_p=None):
 		"""computes the q-expansion of the Hecke-eigensystem f
 
 		Returns 4 items: 
@@ -1176,28 +1192,34 @@ class wt1(SageObject):
 #		strong_sturm = ceil(Gamma0(N).index() / 3)  ###! CHECK THIS!!!!
 		need_more_primes = false
 
-		### We form the needed mod p modular symbol eigenspace on which Hecke acts by a scalar
-		self.output(5,"Cutting out eigenspace with p="+str(p))
-		M,phibar,phibar_lf = self.cut_out_eigenspace(f)
+		if space == None:
+			### We form the needed mod p modular symbol eigenspace on which Hecke acts by a scalar
+			self.output(5,"Cutting out eigenspace with p="+str(p))
+			M,phibar,phibar_lf = self.cut_out_eigenspace(f)
+			self.output(5,"--finished cutting down.  Computing e-vals now")
 		if M.dimension() == 0:
 			fail = true
-			return 0,0,fail,need_more_primes
-		if M.dimension() > 1:
-			self.output(5,"Too eigenspace too big")
+			return 0,0,0,fail,need_more_primes
+		# if M.dimension() > 1:
+		# 	self.output(5,"Too eigenspace too big")
 			#! assert 0==1,"didn't cut down far enough.  need bigger sturm"
-		self.output(5,"--finished cutting down.  Computing e-vals now")
+
+		print M,phibar,phibar_lf
+		for q in primes(sturm):
+			print "Q",q,M.hecke_polynomial(q).factor(),M.hecke_polynomial(q).parent()
 
 		### Simulateously extracting the mod p eigenvalues from this space and finding Artin minimal polynomials
 		### that lifts of these mod p eigenvalues satisfy.  This may involve combining mod p information for 
 		### various p and may prove to show that the form is actually now Artin
-		evs_modp,hecke,fail,need_more_primes = self.extract_modp_evs_and_hecke_polys(f,M,phibar,phibar_lf,sturm)
+		evs_modp,hecke,fail,need_more_primes = self.extract_modp_evs_and_hecke_polys(f,M,phibar,phibar_lf,sturm,min_p=min_p)
 		if fail or need_more_primes:
 			if need_more_primes:
 				self.output(5,"Min polys not uniquely determined: need to compute with more primes")
 			if fail:
 				self.output(5,"Not Artin")
-			return 0,0,fail,need_more_primes
+			return 0,0,0,fail,need_more_primes
 
+		print "evs_modp",evs_modp
 		## We now have kf as an abstract finite extension of kchi.  We also can pick a prime pf of Kf over p.
 		## Then the residue field of pf, say kf_global, if isomorphic to kf.  We pick an isomophism j:kf_global-->kf
 		## We then seek a phi : Qchi --> K_f such that for z in O_Qchi, phibar(kchi(z)) = j(kf_global(phi(z)))
@@ -1216,25 +1238,26 @@ class wt1(SageObject):
 				found = true
 				break
 		assert found,"No map phi found"
+		print "map",j
 
 		# Uniquely lifting mod p eigenvalues to roots of min polys
 		evs = {}
-		for q in hecke.keys():
+		ps = [q for q in hecke.keys() if q >= min_p and q <= sturm]
+		ps.sort()
+		for q in ps:
 			fq = hecke[q][0]
 			rs = hom_to_poly(fq,phi).roots()
+
 			done = false
+			print q,evs_modp[q],fq
+			print "poly",hom_to_poly(fq,phi)
+			print "roots",rs
 			possible_lifts = [r[0] for r in rs if evs_modp[q] == j(kf_global(r[0]))]
 			assert len(possible_lifts)>0, "no congruent root found "+str(rs)+str(fq)
 			assert len(possible_lifts)==1, "lift not unique!"
 			evs[q] = possible_lifts[0]
 
-		R = PowerSeriesRing(Kf,'q')
-		q = R.gens()[0]
-		ans = 0
-		for n in range(1,sturm):
-			ans += an(evs,n,chi,phi) * q**n
-
-		return ans,phi,fail,need_more_primes
+		return evs,M,phi,fail,need_more_primes
 	
 	def multiplier(self,p):
 		"""returns 2 if p does not divide the level and 1 if it does"""
@@ -1283,7 +1306,7 @@ class wt1(SageObject):
 
 	def output(self,verbose,str):
 		if self.verbose_level() >= verbose:
-			print str
+			print RECURSION_LEVEL*'*' + str
 
 
 #--------------------
@@ -1478,6 +1501,17 @@ def an(evs,n,chi,phi):
 			else:
 				return an(evs,q**(e-1),chi,phi) * evs[q] - phi(chi(q)) * an(evs,q**(e-2),chi,phi)
 
+def form_qexp_from_evs(evs,chi,phi):
+	Kf = evs[evs.keys()[0]].parent()
+	R = PowerSeriesRing(Kf,'q')
+	q = R.gens()[0]
+	ans = 0
+	for n in range(1,sturm):
+		ans += an(evs,n,chi,phi) * q**n
+
+	return ans
+
+
 ## trying to get eps take values in some normalized form with smallest coefficient field
 def normalize_character(eps):
 	eps = eps.minimize_base_ring()
@@ -1525,6 +1559,12 @@ def extend(g,B,phi):
 	return sum(v)
 
 
+def merge_disjoint_dicts(x,y):
+	X = set(x.keys())
+	Y = set(y.keys())
+	assert X.intersection(Y).is_empty(),"not disjoint dicts"
 
+	for k in y.keys():
+		x[k] = y[k]
 
-
+	return x
