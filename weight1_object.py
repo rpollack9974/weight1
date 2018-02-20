@@ -4,7 +4,8 @@
 
 ### Spped ups
 # think about size of residue field
-
+# need to figure out how big need to compute q-expansion
+# certainly compute up to dimension first and then intergal basis and then more if needed
 """ 
 global variables in use:
 ------------------------
@@ -788,6 +789,7 @@ class wt1(SageObject):
 		M = ModularSymbols(chi,p,1,kchi).cuspidal_subspace()
 		R = PolynomialRing(kchi,'x')
 		for q in hp.keys():
+			print q,"dim=",M.dimension()
 			Tq = M.hecke_operator(q)
 			M = (R(hp[q][0]).substitute(Tq)**M.dimension()).kernel()
 		M = ordinary_subspace(M,p)
@@ -836,6 +838,7 @@ class wt1(SageObject):
 		for q in primes(sturm):
 			if q != p or N % p == 0:
 				Tq = M.hecke_operator(q)
+				print q,"dim=",M.dimension()
 				M = ((Tq-kf(f[q]))**(2*modp_mult)).kernel()
 
 		# now to handle a_p -- three cases:
@@ -930,11 +933,13 @@ class wt1(SageObject):
 	def find_integral_basis(self):
 		chi = self.neben()
 		N = chi.modulus()
-		self.output(5,"Computing integral basis of weight 2 space")
 		S = ModularSymbols(chi**2,2,1).cuspidal_subspace()
 		r = 2
 		strong_sturm = ceil(Gamma0(N).index() / 3)+1  ###! CHECK THIS!!!!
+		self.output(5,"Computing integral basis of weight 2 space with precision "+str(strong_sturm))
 		B = S.q_expansion_basis(strong_sturm)
+		self.output(5,"Done")
+
 		return B
 
 	def verify_remaining_forms(self):
@@ -958,7 +963,7 @@ class wt1(SageObject):
 				g = self.good_form_for_qexp(f)
 				self.output(5,"Working with the form: "+str(g))
 				B = self.find_integral_basis()
-				weak_sturm = max([b.valuation() for b in B]) + 1
+				weak_sturm = max([b.valuation() for b in B]) + 2
 				fq,phi,fail,need_more_primes = self.form_qexp(g,weak_sturm)
 				if fail:
 					self.fully_excise_form(f.hecke())
@@ -991,7 +996,7 @@ class wt1(SageObject):
 		g = extend(g,B,phi)
 		Kf = g[1].parent()
 		R = PowerSeriesRing(Kf,'q',default_prec=sturm)
-		f = R(g / E1chi(chi,phi,sturm))
+		f = R(g) / R(E1chi(chi,phi,sturm))
 
 		bool = is_in(f**2,B,phi,sturm)
 		self.output(5,"f^2 test: "+str(bool))
@@ -1179,7 +1184,7 @@ class wt1(SageObject):
 			return 0,0,fail,need_more_primes
 		if M.dimension() > 1:
 			self.output(5,"Too eigenspace too big")
-			assert 0==1,"didn't cut down far enough.  need bigger sturm"
+			#! assert 0==1,"didn't cut down far enough.  need bigger sturm"
 		self.output(5,"--finished cutting down.  Computing e-vals now")
 
 		### Simulateously extracting the mod p eigenvalues from this space and finding Artin minimal polynomials
