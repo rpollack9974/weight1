@@ -6,6 +6,10 @@
 # check up to sturm bound to femove CM or just get more primes?
 # large split p's vs F_p^2's for small p
 # when alpha_p is in F_p^2
+
+###Problems
+# need to extend oldforms if STURM  increases
+# comfusion of sturm,sturm+1,sturm-1,etc
 """ 
 global variables in use:
 ------------------------
@@ -842,6 +846,8 @@ class wt1(SageObject):
 				if len(pibar_p.roots()) == 0:
 					lf,phibar_lf = pibar_p.splitting_field('a',map=true)
 					M = ModularSymbols(chip,p,1,lf).cuspidal_subspace()
+					if lf.degree() > 1:
+						self.output(5,"Using extension of F_p of degree "+str(lf.degree()))
 				else:
 					M = ModularSymbols(chip,p,1,kf).cuspidal_subspace()
 		else:
@@ -1005,7 +1011,7 @@ class wt1(SageObject):
 				elif not need_more_primes:
 					evs = merge_disjoint_dicts(evs,evs_rest)
 					fq = form_qexp_from_evs(evs,chi,phi,weak_sturm)
-					bool = self.verify_q_expansion(fq,phi,B)
+					fq,bool = self.verify_q_expansion(fq,phi,B)
 					if bool:
 						fqs = galois_conjugates(fq,self.neben(),phi)
 						for data in fqs:
@@ -1043,7 +1049,7 @@ class wt1(SageObject):
 		# 	print "f^2 test is: "+str(bool)
 		# 	print "Weight 1 form: "+str(fq)
 
-		return bool
+		return f,bool
 
 	def cut_out_eigenspace(self,f,generalized=false,full_sturm=0):
 		"""returns mod p modular symbol space on which Hecke acts by a scalars satisfying min polys in f
@@ -1062,6 +1068,8 @@ class wt1(SageObject):
 		Rf = PolynomialRing(lf,'x')
 		x = Rf.gen()
 		chip = chi.change_ring(phibar).change_ring(phibar_lf)
+		if lf.degree() > 1:
+			self.output(5,"##################Using extension of F_"+str(p)+"= of degree "+str(lf.degree()))
 		M = ModularSymbols(chip,p,1,lf).cuspidal_subspace()
 		if full_sturm != 0:
 			ps = primes(full_sturm)
@@ -1489,7 +1497,7 @@ def galois_conjugates(fq,chi,phi):
 	for sigma in list(GG):
 		if fixes_chi(sigma,chi,phi):
 			t = 0
-			for n in range(fq.degree()):
+			for n in range(fq.degree()+1):
 				t += sigma(fq[n]) * q**n
 			ans += [(t,phi)]
 	return ans

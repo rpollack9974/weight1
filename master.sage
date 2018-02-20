@@ -44,6 +44,7 @@ def collect_weight_one_data(Nmin,Nmax,verbose=0):
 		G = DirichletGroup(N)
 		Gs = G.galois_orbits()
 		for chi in Gs:
+			start_time = cputime(t)
 			psi = chi[0].minimize_base_ring()
 			out("---------------------------------------------------------")
 			out("Computing with "+str(psi))
@@ -63,7 +64,7 @@ def collect_weight_one_data(Nmin,Nmax,verbose=0):
 				save(EXOTIC_PURE,"EXOTIC")
 			else:
 				out("No exotic forms")
-			out("Time: "+str(cputime(t)))
+			out("Time: "+str(cputime(t)-start_time)+" --- Total time: "+str(cputime(t)))
 	return ans
 
 def out(str):
