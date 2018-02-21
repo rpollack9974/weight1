@@ -463,7 +463,8 @@ class wt1(SageObject):
 		"""
 		global RECURSION_LEVEL
 
-		self.output(5,"Computing old exotic forms")
+		self.output(5,"--------------------------------------------------------")
+		self.output(5,"Computing old exotic forms -- with recursion: "+str(recursive))
 		self.clear_old_exotic()
 		chi = self.neben()
 		N = chi.modulus()
@@ -504,6 +505,7 @@ class wt1(SageObject):
 			phi = embedding from Q(chi) to K_f
 			m = dimension of the generalized eigenspace corresponding to this CM form 
 		"""
+		self.output(5,"------------------")		
 		self.output(5,"Computing CM forms")
 		chi = self.neben()
 		N = chi.modulus()
@@ -593,9 +595,9 @@ class wt1(SageObject):
 		for i in range(self.num_spaces()):
 			self.replace_space(self.space(i).intersect(Sp),i)
 		self.add_space(Sp)
-		self.compute_bounds()
 		self.remove_non_Artin_CM(p)
 		self.remove_non_Artin_old_exotic(p)
+		self.compute_bounds()
 		return 
 
 	def cut_down_to_unique(self,verbose=false):
@@ -636,7 +638,6 @@ class wt1(SageObject):
 			if not self.is_non_Artin(f,p):
 				new_list += [f]
 		self.set_CM(new_list)
-		self.compute_bounds()
 		return
 
 	def remove_non_Artin_old_exotic(self,p):
@@ -647,7 +648,6 @@ class wt1(SageObject):
 			if not self.is_non_Artin(f,p):
 				new_list += [f]
 		self.set_old_exotic(new_list)
-		self.compute_bounds()
 		return
 
 
@@ -757,7 +757,7 @@ class wt1(SageObject):
 					if not excised:
 						success = false
 					if not excised:
-						self.output(4,"    too many forms found --- will need to compute mod p with more p (evenutually) --- going on to next form")
+						self.output(4,"    too many forms found --- will need to compute mod p with more p (eventually) --- going on to next form")
 						## there are potentially forms congruent to this CM form in weight p which don't come from weight 1
 						## but we now are careful and check to the sturm bound to prove this congruence
 				else:
@@ -767,8 +767,10 @@ class wt1(SageObject):
 			if success:
 				if tag == "CM":
 					self.output(4,"All CM forms removed")
+#					self.output(4,"--------------------")
 				else:
 					self.output(4,"All old exotic forms removed")
+					self.output(4,"----------------------------")
 				self.compute_bounds()	
 				return True
 			else:
@@ -970,20 +972,40 @@ class wt1(SageObject):
 		return 
 
 	def good_form_for_qexp(self,f):
-		"""finds a good prime to use to compute q-expansion of f
+		"""finds a form computed mod a good prime to use to compute q-expansion of f
 
-		such a prime p must have been already used and the eigenvalues of f must be uniquely determined mod p
+		returns form,need_more_primes
+
+		if there is a p <= MAX_PRIME_TO_CHOOSE_TO_USE which has residue field = F_p,
+		sets need_more_primes to true
+
+		otherwise, finds a form g computed mod p with same min polys as f and for which eigenvalues
+		are uniquely determined by mod p reduction.
 		"""
 		d = f.disc()
 		found = false
 		for S in self.spaces():
-			if S.unique() and d % S.p() != 0:
-				found = true
-				break
+			p = S.p()
+			if S.multiplicity(f) > 0 and d % p != 0:
+				lf,phibar,phibar_lf = f.modp_FC_field(p,alpha_p=True)
+				if lf.degree() == 1 or p <= 3:
+					found = true
+					break
+		if not found:
+			p = self.next_good_prime()
+			if p <= MAX_PRIME_TO_CHOOSE_TO_USE:
+				return 0,true
+			else:
+				found = false
+				for S in self.spaces():
+					if S.multiplicity(f) > 0 and d % S.p() != 0:
+						found = true
+						break
+
 		assert found,"not found?"
 		for g in S:
 			if g == f:
-				return g
+				return g,false
 
 	def find_integral_basis(self,phi):
 		chi = self.neben()
@@ -1023,35 +1045,37 @@ class wt1(SageObject):
 			S = self.unique_space()
 			if S.num_forms() > 0:
 				f = S[0]
-				g = self.good_form_for_qexp(f)
-				self.output(5,"Working with the form: "+str(g))
+				self.output(5,"Working with the form: "+str(f))
+				g,need_more_primes = self.good_form_for_qexp(f)
+				if not need_more_primes:
+					## compute first to dimension in weight 2 which is a lower bound for what we ultimately need
+					d = dimension_cusp_forms(chi**2,2)
+					self.output(5,"  Computing e-vals up to "+str(d))
+					evs,space_info,phi,fail,need_more_primes,need_more_sturm = self.find_prime_FCs(g,d)
+					if not fail and not need_more_primes and not need_more_sturm:
+						## if this succeeds, compute now to the true bound given below by weak_sturm
+						B = self.find_integral_basis(phi)
+						weak_sturm = max([b.valuation() for b in B]) + 2  #!
+						self.output(5," Computing e-vals up to "+str(weak_sturm))
+						evs_rest,W,phi,fail,need_more_primes,need_more_sturm = \
+							self.find_prime_FCs(g,weak_sturm,min_p=max(evs.keys())+1,space_info=space_info)
 
-				## compute first to dimension in weight 2 which is a lower bound for what we ultimately need
-				d = dimension_cusp_forms(chi**2,2)
-				self.output(5,"  Computing e-vals up to "+str(d))
-				evs,space_info,phi,fail,need_more_primes,need_more_sturm = self.find_prime_FCs(g,d)
-				if not fail and not need_more_primes and not need_more_sturm:
-					## if this succeeds, compute now to the true bound given below by weak_sturm
-					B = self.find_integral_basis(phi)
-					weak_sturm = max([b.valuation() for b in B]) + 2  #!
-					self.output(5," Computing e-vals up to "+str(weak_sturm))
-					evs_rest,W,phi,fail,need_more_primes,need_more_sturm = \
-						self.find_prime_FCs(g,weak_sturm,min_p=max(evs.keys())+1,space_info=space_info)
-
-				if need_more_sturm:
-					break
-				if fail:
-					self.fully_excise_form(f.hecke())
-				elif not need_more_primes:
-					evs = merge_disjoint_dicts(evs,evs_rest)
-					fq = form_qexp_from_evs(evs,chi,phi,weak_sturm)
-					fq,bool = self.verify_q_expansion(fq,phi,B)
-					if bool:
-						fqs = galois_conjugates(fq,self.neben(),phi)
-						for data in fqs:
-							self.add_exotic_form(data)
-					##!! need to check multiplicity here --- this is cheating!
-					self.fully_excise_form(f.hecke())
+					if need_more_sturm:
+						break
+					if fail:
+						self.fully_excise_form(f.hecke())
+					elif not need_more_primes:
+						evs = merge_disjoint_dicts(evs,evs_rest)
+						fq = form_qexp_from_evs(evs,chi,phi,weak_sturm)
+						fq,bool = self.verify_q_expansion(fq,phi,B)
+						if bool:
+							fqs = galois_conjugates(fq,self.neben(),phi)
+							for data in fqs:
+								self.add_exotic_form(data)
+						##!! need to check multiplicity here --- this is cheating!
+						self.fully_excise_form(f.hecke())
+				else:
+					self.output(5,"grabbing another prime to help with computation")
 				if need_more_primes:
 					self.use_new_prime()
 				self.compute_bounds()
@@ -1640,7 +1664,7 @@ def fail_efficiency_test(p,chi):
 		return false
 	elif p == 3 and kp.degree() <= 4:
 		return false
-	elif p == 5 and kp.degree() <=1:
+	elif p == 5 and kp.degree() <= 1:
 		return false
 	elif kp.degree() == 1:
 		return false

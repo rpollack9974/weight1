@@ -40,8 +40,7 @@ def wt1_space_modp(p,chi,lower=0,verbose=False,sturm=None,log=None):
     
 	A weight one space
 	"""
-	output(log,verbose,1,"------")
-	output(log,verbose,1,"   Working with p = "+str(p)+":")
+	output(log,verbose,1,"-->Working with p = "+str(p)+":")
 	N = chi.modulus()
 	Nc = chi.conductor()
 	Nt = N / Nc
@@ -54,7 +53,8 @@ def wt1_space_modp(p,chi,lower=0,verbose=False,sturm=None,log=None):
 	FC.set_pchi(p,chi,pchi)
 	kchi = pchi.residue_field()
 	output(log,verbose,1,"    Residue field has degree "+str(kchi.degree()))
-
+	if kchi.degree() > 1:
+		output(log,verbose,1,"###############################")
 
 	output(log,verbose,3,"     Forming modsym space")
 	M = ModularSymbols(chi,p,1,kchi).cuspidal_subspace()
