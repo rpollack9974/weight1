@@ -1089,12 +1089,12 @@ class wt1(SageObject):
 				f_q = 1
 				for a_p in possible_a_ps:
 					f_q *= x**2-a_p[0]*x+phibar_full(kchi(chi(p)))
+#					print "f_q=",f_q
 			elif q == p:
 				# pass to ordinary subspace
 				R = f_q.parent()
 				x = R.gen()
 				f_q,r = f_q.quo_rem(x**f_q.valuation(x))
-
 			f_q = gcd(f_q,true_f_q)
 			if f_q.degree() > 0:
 				eigen = f_q.roots()[0][0]
@@ -1233,13 +1233,15 @@ class wt1(SageObject):
 			### We form the needed mod p modular symbol eigenspace on which Hecke acts by a scalar
 			self.output(5,"    Cutting out eigenspace with p="+str(p)+" to precision "+str(sturm))
 			M,phibar,phibar_lf = self.cut_out_eigenspace(f)
-			assert M.dimension() != 0,"eigenspace gone!"
+			#! (I think we don't need this -- it proves the form doesn't exist)
+			# assert M.dimension() != 0,"eigenspace gone!"
 			self.output(5,"    finished cutting down.")
 		else:
 			M = space_info[0]
 			phibar = space_info[1]
 			phibar_lf = space_info[2]
 		if M.dimension() == 0:
+			self.output(5,"    Eigenspace was 0-dimensional")
 			fail = true
 			return 0,0,0,fail,need_more_primes,need_more_sturm
 		# if M.dimension() > 1:
