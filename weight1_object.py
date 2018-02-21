@@ -132,9 +132,17 @@ class wt1(SageObject):
 			self.add_data_to_exotic()
 			return 
 
+		### can't yet handle the case where CM or old exotic are not distinguised by their min polys (e.g. N=396)
+		bool = self.CM_old_exotic_sturm_check()
+		if not bool:
+			self.output(2,"GIVING UP HERE AND WRITING PROBLEM CHARACTER TO DATA/identical_minpoly_fail")
+			f = open("DATA/identical_minpoly_fail",'a')
+			f.write(str(self.neben()))
+			f.close()
+			return 
+
 		bool = self.excise_lower_bound_forms(tag="CM")
 		if bool:
-
 			self.compute_space
 		if self.is_fully_computed():
 			self.add_data_to_exotic()
@@ -514,7 +522,7 @@ class wt1(SageObject):
 					### oldspan returns 3-tuples: (form,phi,multiplicity)
 					for g in olds:
 						self.add_CM(g)
-		self.compute_bounds()
+		self.compute_bounds()		
 
 	def extend_CM_data(self,B):
 		"""extends Hecke data in each CM form to primes < B"""
@@ -561,11 +569,8 @@ class wt1(SageObject):
 			p = 2
 		else:
 		    p = next_prime(max(primes_used))
-		Qchi = self.Qchi()
-		pp = Qchi.prime_above(p)
-		while N.valuation(p) != Nc.valuation(p) or pp.residue_field().degree() != 1:
+		while N.valuation(p) != Nc.valuation(p) or fail_efficiency_test(p,chi):
 			p = next_prime(p)
-			pp = Qchi.prime_above(p)
 
 		return ZZ(p)
 
@@ -644,6 +649,35 @@ class wt1(SageObject):
 		self.set_old_exotic(new_list)
 		self.compute_bounds()
 		return
+
+
+	def CM_old_exotic_sturm_check(self):
+		"""checks to see if any two CM or any two exotic have same min polys"""
+		Qchi = self.Qchi()
+		CM_minpolys = []
+		for F in self.CM():
+			f = F[0]
+			phi = F[1]
+			h = {}
+			for q in f.keys():
+				h[q] = minpoly_over(f[q],Qchi,phi)
+			CM_minpolys += [h]
+		for h in CM_minpolys:
+			if CM_minpolys.count(h) > 1:
+				return false
+		old_exotic_minpolys = []
+		for F in self.old_exotic():
+			f = F[0]
+			phi = F[1]
+			h = {}
+			for q in f.keys():
+				h[q] = minpoly_over(f[q],Qchi,phi)
+			old_exotic_minpolys += [h]
+		for h in old_exotic_minpolys:
+			if old_exotic_minpolys.count(h) > 1:
+				return false
+		return true
+
 
 	def excise_lower_bound_forms(self,tag="CM"):
 		"""This functions removes the potential weight 1 forms which arise from either CM or old exotic forms
@@ -1594,3 +1628,22 @@ def merge_disjoint_dicts(x,y):
 		x[k] = y[k]
 
 	return x
+
+## playing with this to find good primes to use
+def fail_efficiency_test(p,chi):
+	Qchi = chi.base_ring()
+	if Qchi == QQ:
+		Qchi = CyclotomicField(2)
+	kp = Qchi.prime_above(p).residue_field()
+	f = kp.degree()
+	if p == 2:
+		return false
+	elif p == 3 and kp.degree() <= 4:
+		return false
+	elif p == 5 and kp.degree() <=1:
+		return false
+	elif kp.degree() == 1:
+		return false
+	return true
+
+
