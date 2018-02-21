@@ -19,7 +19,7 @@ EXOTIC = {}
 EXOTIC_PURE = {}
 STURM = 20
 RECURSION_LEVEL = 0
-MAX_PRIME_TO_CHOOSE_TO_USE = 61
+MAX_PRIME_TO_CHOOSE_TO_USE = 50
 LOG_FILE = "DATA/log_file"
 f = open(LOG_FILE,'w')
 f.write("STARTING COMPUTATION\n")
@@ -48,7 +48,10 @@ def collect_weight_one_data(Nmin,Nmax,verbose=0):
 			start_time = cputime(t)
 			psi = chi[0].minimize_base_ring()
 			out("---------------------------------------------------------")
+			out("---------------------------------------------------------")
 			out("Computing with "+str(psi))
+			out("---------------------------------------------------------")
+			out("---------------------------------------------------------")
 			A = wt1(psi,verbose=verbose)
 			if len(A.exotic_forms()) > 0:
 				ans += [A]

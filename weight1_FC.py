@@ -24,6 +24,9 @@ class weight_one_FC(SageObject):
 	def pchi(self,p,chi):
 		return self._pchi[(p,chi)]
 
+	def pchi_has_key(self,p,chi):
+		return self._pchi.has_key((p,chi))
+
 	def set_pchi(self,p,chi,pchi):
 		self._pchi[(p,chi)] = pchi
 

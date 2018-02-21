@@ -121,7 +121,7 @@ class EigenDecomp(SageObject):
 		N = chi.modulus()
 		h = self.hecke_polys(j,exclude=[p],sturm=sturm)
 		### need to do this separately becaues hecke_polys wants to only return irred polys
-		if exclude.count(p) == 0:
+		if exclude.count(p) == 0 and p < sturm:
 			h[p] = self[j].hecke_polynomial(p)
 
 		h0 = {}
@@ -134,7 +134,7 @@ class EigenDecomp(SageObject):
 				if len(h0[q]) == 0:
 					fail = true
 
-		if exclude.count(p) == 0:
+		if exclude.count(p) == 0 and p < sturm:
 			assert N % p == 0 or len(h[p].factor()) <= 2, "have not decomposed far enough (seen at p)"
 			assert N % p != 0 or len(h[p].factor()) <= 1, "have not decomposed far enough (seen at p)"
 			pi_alpha = h[p].factor()[0][0]

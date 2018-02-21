@@ -137,7 +137,7 @@ class wt1(SageObject):
 		if not bool:
 			self.output(2,"GIVING UP HERE AND WRITING PROBLEM CHARACTER TO DATA/identical_minpoly_fail")
 			f = open("DATA/identical_minpoly_fail",'a')
-			f.write(str(self.neben()))
+			f.write(str(self.neben())+'\n')
 			f.close()
 			return 
 
@@ -154,6 +154,7 @@ class wt1(SageObject):
 			self.add_data_to_exotic()
 			return
 
+		self.output(5,"*********************************PHASE 2*********************************")
 		need_more_sturm = self.verify_remaining_forms()
 		if need_more_sturm:
 			STURM = STURM + 10
@@ -463,7 +464,7 @@ class wt1(SageObject):
 		"""
 		global RECURSION_LEVEL
 
-		self.output(5,"--------------------------------------------------------")
+#		self.output(5,"--------------------------------------------------------")
 		self.output(5,"Computing old exotic forms -- with recursion: "+str(recursive))
 		self.clear_old_exotic()
 		chi = self.neben()
@@ -557,11 +558,14 @@ class wt1(SageObject):
 					break
 		self.set_CM(keep)
 
-	def next_good_prime(self):
-		"""returns the next prime not yet used in mod p computations (and which is not supercuspidal)
+	def next_good_prime(self,form=None):
+		"""returns the next prime not yet used in mod p computations (not supercuspidal and efficiently chosen)
 
 		a prime here is supercuspidal if the valuation of the level at the prime is not the same as the
 		valuation of the conductor of chi at the prime.
+
+		the function fail_efficiency_test checks to see if this is a reasonable prime to pick (e.g. residue field
+		not too big)
 		"""
 		chi = self.neben()
 		N = chi.modulus()
@@ -571,8 +575,20 @@ class wt1(SageObject):
 			p = 2
 		else:
 		    p = next_prime(max(primes_used))
-		while N.valuation(p) != Nc.valuation(p) or fail_efficiency_test(p,chi):
+		need_more = false
+		while N.valuation(p) != Nc.valuation(p) or fail_efficiency_test(p,chi) or need_more:
 			p = next_prime(p)
+			if form != None:
+				lf,a,b = f.modp_FC_field(alpha_p=True)
+				need_more = lf.degree() > 1 and p <= MAX_PRIME_TO_CHOOSE_TO_USE
+
+		if p > MAX_PRIME_TO_CHOOSE_TO_USE and form != None:
+			if len(primes_used) == 0:
+				p = 2
+			else:
+			    p = next_prime(max(primes_used))
+			while N.valuation(p) != Nc.valuation(p) or fail_efficiency_test(p,chi):
+				p = next_prime(p)
 
 		return ZZ(p)
 
@@ -770,7 +786,6 @@ class wt1(SageObject):
 #					self.output(4,"--------------------")
 				else:
 					self.output(4,"All old exotic forms removed")
-					self.output(4,"----------------------------")
 				self.compute_bounds()	
 				return True
 			else:
@@ -969,6 +984,7 @@ class wt1(SageObject):
 		elif tag == "old_exotic":
 			self.set_old_exotic(new_list)
 		self.compute_bounds()
+		
 		return 
 
 	def good_form_for_qexp(self,f):
@@ -987,20 +1003,8 @@ class wt1(SageObject):
 		for S in self.spaces():
 			p = S.p()
 			if S.multiplicity(f) > 0 and d % p != 0:
-				lf,phibar,phibar_lf = f.modp_FC_field(p,alpha_p=True)
-				if lf.degree() == 1 or p <= 3:
-					found = true
-					break
-		if not found:
-			p = self.next_good_prime()
-			if p <= MAX_PRIME_TO_CHOOSE_TO_USE:
-				return 0,true
-			else:
-				found = false
-				for S in self.spaces():
-					if S.multiplicity(f) > 0 and d % S.p() != 0:
-						found = true
-						break
+				found = true
+				break
 
 		assert found,"not found?"
 		for g in S:
@@ -1025,6 +1029,44 @@ class wt1(SageObject):
 			C += [c]
 		return C
 
+
+	def find_next_prime(self,f,primes_used,must=False):
+		chi = self.neben()
+		N = chi.modulus()
+		Nc = chi.conductor()	
+		spaces = [S for S in self.spaces() if S.multiplicity(f) > 0]
+		ps = [S.p() for S in spaces if primes_used.count(S.p()) == 0 and is_good_prime_for_form(f,S.p())]
+		print "A",ps
+		if len(ps) > 0:
+			return best_prime_for_form(f,ps)
+		# no good prime already computed (and not used) found
+		ps = [q for q in primes(MAX_PRIME_TO_CHOOSE_TO_USE) if self.primes_used().count(q) == 0 and \
+				is_good_prime_for_form(f,q) and N.valuation(q) == Nc.valuation(q)]
+		print "B",ps
+		if len(ps) > 0:
+			return best_prime_for_form(f,ps)
+		# no good prime used below upper bound
+		if not must:
+			ps = [S.p() for S in spaces if primes_used.count(S.p()) == 0]
+			print "C",ps
+			assert len(ps) > 0,"uh oh"
+			return best_prime_for_form(f,ps)
+		else:
+			self.output(5,"POSSIBLY POOR CHOICE OF PRIME HERE BECAUSE NO ALTERNATIVE IS BETTER")
+			ps = [q for q in primes(MAX_PRIME_TO_CHOOSE_TO_USE) if self.primes_used().count(q) == 0 \
+					and N.valuation(q) == Nc.valuation(q)]
+			print "D",ps
+			assert len(ps) > 0,"uh oh"
+			return best_prime_for_form(f,ps)
+					
+	def find_best_prime_for_form(self,f):
+		d = f.disc()
+		ps = self.primes_used()
+		ps = [p for p in ps if self.space_at_p(p).unique() and d % p != 0]
+		return best_prime_for_form(f,ps)
+
+
+
 	def verify_remaining_forms(self):
 		"""Takes each remaining form and attempts to produce a bonafide weight 1 q-expansion
 
@@ -1040,14 +1082,32 @@ class wt1(SageObject):
 		"""
 		chi = self.neben()
 		need_more_sturm = false
+		need_more_primes = false
 		self.output(5,"Running through remaining forms and verifying that they come from weight 1")
-		while not self.is_fully_computed():
-			S = self.unique_space()
-			if S.num_forms() > 0:
-				f = S[0]
+		S = self.unique_space()
+		finished_forms = []
+		for f in S.forms():
+			if self.unique_space().multiplicity(f) > 0:
+				done = false
 				self.output(5,"Working with the form: "+str(f))
-				g,need_more_primes = self.good_form_for_qexp(f)
-				if not need_more_primes:
+				primes_used = []
+
+				while not done:
+					p = self.find_next_prime(f,primes_used,must=need_more_primes)
+					ps_f = [q for q in self.primes_used() if self.space_at_p(q).multiplicity(f) > 0]
+					if ps_f.count(p) == 0:
+						self.output(5,"grabbing another prime to help with computation")
+						self.use_new_prime(p)
+						T = self.unique_space()
+						if T.multiplicity(f) == 0:
+							done = true
+							break
+					p = self.find_best_prime_for_form(f)
+					S = self.space_at_p(p) #!  is it unique??
+					primes_used += [p]
+					for g in S.forms():
+						if f == g:
+							break
 					## compute first to dimension in weight 2 which is a lower bound for what we ultimately need
 					d = dimension_cusp_forms(chi**2,2)
 					self.output(5,"  Computing e-vals up to "+str(d))
@@ -1058,12 +1118,12 @@ class wt1(SageObject):
 						weak_sturm = max([b.valuation() for b in B]) + 2  #!
 						self.output(5," Computing e-vals up to "+str(weak_sturm))
 						evs_rest,W,phi,fail,need_more_primes,need_more_sturm = \
-							self.find_prime_FCs(g,weak_sturm,min_p=max(evs.keys())+1,space_info=space_info)
-
+								self.find_prime_FCs(g,weak_sturm,min_p=max(evs.keys())+1,space_info=space_info)
 					if need_more_sturm:
 						break
 					if fail:
 						self.fully_excise_form(f.hecke())
+						done = true
 					elif not need_more_primes:
 						evs = merge_disjoint_dicts(evs,evs_rest)
 						fq = form_qexp_from_evs(evs,chi,phi,weak_sturm)
@@ -1074,13 +1134,12 @@ class wt1(SageObject):
 								self.add_exotic_form(data)
 						##!! need to check multiplicity here --- this is cheating!
 						self.fully_excise_form(f.hecke())
-				else:
-					self.output(5,"grabbing another prime to help with computation")
-				if need_more_primes:
-					self.use_new_prime()
-				self.compute_bounds()
-			else:
-				break
+						done = true
+					else:
+						self.output(5,"grabbing another prime to help with computation")
+				if not done:
+					break
+
 		return need_more_sturm
 
 	def verify_q_expansion(self,fq,phi,B):
@@ -1655,19 +1714,52 @@ def merge_disjoint_dicts(x,y):
 
 ## playing with this to find good primes to use
 def fail_efficiency_test(p,chi):
+	N = chi.modulus()
+	Nc = chi.conductor()
+	if N.valuation(p) != Nc.valuation(p):
+		return true
 	Qchi = chi.base_ring()
 	if Qchi == QQ:
 		Qchi = CyclotomicField(2)
 	kp = Qchi.prime_above(p).residue_field()
 	f = kp.degree()
+	return not good_finite_field(kp)
+
+
+def good_finite_field(kp):
+	p = kp.characteristic()
+	f = kp.degree()
 	if p == 2:
-		return false
+		return true
 	elif p == 3 and kp.degree() <= 4:
-		return false
+		return true
 	elif p == 5 and kp.degree() <= 1:
-		return false
+		return true
 	elif kp.degree() == 1:
-		return false
-	return true
+		return true
+	return false
+
+def is_good_prime_for_form(f,p):
+	chi = f.chi()
+	N = chi.modulus()
+	Nc = chi.conductor()
+	if N.valuation(p) != Nc.valuation(p):
+		return true
+	lf,a,b = f.modp_FC_field(p,alpha_p=True)
+	return good_finite_field(lf)
+
+def score_for_prime(f,p):
+	lf,a,b = f.modp_FC_field(p,alpha_p=True)
+	d = lf.degree()
+	if p <= 3:
+		return p**(sqrt(d*1.0))
+	else:
+		return p^d
+
+def best_prime_for_form(f,ps):
+	v = [score_for_prime(f,q) for q in ps]
+	m = min(v)
+	i = v.index(m)
+	return ps[i]
 
 

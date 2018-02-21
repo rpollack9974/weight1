@@ -376,7 +376,11 @@ class weight_one_form(SageObject):
 		ell = self.primes()[0]
 		chi = self.chi()
 		Qchi = self[ell][0].base_ring()
-		pchi = FC.pchi(p,chi)
+		if FC.pchi_has_key(p,chi):
+			pchi = FC.pchi(p,chi)
+		else:
+			pchi = Qchi.prime_above(p)
+			FC.set_pchi(p,chi,pchi)
 		kchi = pchi.residue_field()
 		R = PolynomialRing(kchi,'x')
 		poly = 1
@@ -387,12 +391,13 @@ class weight_one_form(SageObject):
 		Rchi = PolynomialRing(kchi,'x')
 		Rf = PolynomialRing(kf,'x')
 		x = Rf.gen()
-		if alpha_p:
+		if alpha_p and self.primes().count(p) > 0:  # maybe p is larger than STURM
 			ap = hom_to_poly(Rchi(self[p][0]),phibar).roots()[0][0]
 			lf,phibar_lf = (x**2-ap*x+phibar(kchi(chi(p)))).splitting_field('b',map=true)
 			return lf,phibar,phibar_lf
 		else:
-			return kf,phibar
+			id = Hom(kf,kf)[0]
+			return kf,phibar,id  ## HACKING here to make output uniformly 3 entries
 
 	def CM_increase_precision(self,B):
 		"""for a CM form self, this function extends the Hecke data to q < B"""
