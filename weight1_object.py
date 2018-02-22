@@ -1047,7 +1047,8 @@ class wt1(SageObject):
 			return p,true
 
 		# checking to see if there is a great prime to use
-		ps = [p for p in primes(6) if self.primes_used().count(p) == 0 and is_good_prime_for_form(f,p,great=true)]
+		ps = [p for p in primes(6) if self.primes_used().count(p) == 0 and is_good_prime_for_form(f,p,great=true) \
+					and N.valuation(p) == Nc.valuation(p)]
 		self.output(5,"Great primes to work with: "+str(ps))
 		if len(ps) > 0:
 			self.output(5,"Grabbing: "+str(ps[0]))
@@ -1061,8 +1062,8 @@ class wt1(SageObject):
 
 		self.output(5,"Seeking a better prime to use then what is available")
 		# no good prime already computed (and not used) found
-		ps = [q for q in primes(MAX_PRIME_TO_CHOOSE_TO_USE) if self.primes_used().count(q) == 0 and \
-				is_good_prime_for_form(f,q) and N.valuation(q) == Nc.valuation(q)]
+		ps = [p for p in primes(MAX_PRIME_TO_CHOOSE_TO_USE) if self.primes_used().count(p) == 0 and \
+				is_good_prime_for_form(f,p) and N.valuation(p) == Nc.valuation(p)]
 		self.output(5,"Choosing among: "+str(ps))
 		if len(ps) > 0:
 			p = best_prime_for_form(f,ps)
