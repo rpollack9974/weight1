@@ -1114,7 +1114,9 @@ class wt1(SageObject):
 					evs,space_info,phi,fail,need_more_primes,need_more_sturm = self.find_prime_FCs(g,d)
 					if not fail and not need_more_primes and not need_more_sturm:
 						## if this succeeds, compute now to the true bound given below by weak_sturm
+						s = cputime()
 						B = self.find_integral_basis(phi)
+						self.output(5,"IB-Time: "+str(cputime(s)))
 						weak_sturm = max([b.valuation() for b in B]) + 2  #!
 						self.output(5," Computing e-vals up to "+str(weak_sturm))
 						evs_rest,W,phi,fail,need_more_primes,need_more_sturm = \

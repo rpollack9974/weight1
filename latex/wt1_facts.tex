@@ -286,8 +286,10 @@ Consider $\chi$ a Dirichlet character of modulus $N$ and conductor $N_\chi$.  Wr
 
 The reason is easy.  At such a $q$, the associated Galois representation is Steinberg and thus has infinite image.  But this is not possible for a weight 1 form.
 
-Here' something new.  If $\ord_
-\ell(N) = \ord_\ell(N_\chi)$, then the Galois representation at $\ell$ has an unramified quotient which sends $\Frob_\ell$ to $a_\ell$.  In particular, for $\sigma \in G_{\Q_\ell}$ lifting $\Frob_\ell$, we have
+\subsection{Ramified principal series fact}
+
+Here's something new.  Assume $f$ is an exotic form and take $\ell$ such that $\ord_
+\ell(N) = \ord_\ell(N_\chi) >0$.  Then the Galois representation at $\ell$ has an unramified quotient which sends $\Frob_\ell$ to $a_\ell$.  In particular, for $\sigma \in G_{\Q_\ell}$ lifting $\Frob_\ell$, we have
 $$
 \rho(\sigma) = 
 \begin{pmatrix}
@@ -311,7 +313,7 @@ a_\ell^{2 \overline{d}} = \chi^{\ell}(\ell)^{2\overline{d}}
 $$
 where $\overline{d}$ is in $\{1,2,3,4,5\}$.
 
-On the other hand, if $D$ is the gcd of two elements of $\{1,2,3,4,5\}$, then 
+On the other hand, if $D$ is the lcm of two elements of $\{1,2,3,4,5\}$, then 
 $$
 \chi_\ell(\sigma)^D \chi^\ell(\ell)^D  a_\ell^{-D} = a_\ell^D
 $$
@@ -324,6 +326,21 @@ $$
 \chi_\ell(\sigma)^D = 1
 $$
 for all $\sigma$.  Thus the order of $\chi_\ell$ divides $D$.  This puts a new condition on when weight 1 forms can exist!
+
+Ah --- we can do even better.  (I know I typed this up before, but I can't find it anywhere.  I try again.)  Note that $\chi_\ell$ is non-trivial as $\rho$ is ramified at $\ell$.  So take $\sigma_1$ and $\sigma_2$ both lifting $\Frob_\ell$ with $\chi_\ell(\sigma_1) = 1$ and $\chi_\ell(\sigma_2) \neq 1$.  This choice is possible because all extensions are abelian and so I can specify Galois to act as I want on linearly disjoint fields.  Then
+$$
+\rho(\sigma_1) \rho(\sigma_2)^{-1} = 
+\begin{pmatrix}
+\chi_{\ell}(\sigma_2)  & 0 \\
+0 & 1
+\end{pmatrix}.
+$$
+Raising this matrix to one of $1,2,3,4,5$ gives  a scalar matrix.  Thus, $\chi_\ell$ has order 1,2,3,4 or 5!  
+
+~\\
+
+{\bf Fact}: If $f \in S_1(N,\chi)$ is exotic and $\ord_\ell(N) = \ord_\ell(N_chi) > 0$, then $\chi_\ell$ has order less than or equal to 5.
+
 
 
 \subsection{Fourier coefficients}
@@ -340,9 +357,9 @@ where $c=0,1,2$ or $4$.
 
 \item if $\ell | N_\chi$, $\ell \nmid N'$, then
 $$
-a_\ell^{2e} = 1
+a_\ell^{2\overline{d}} = \chi^{\ell}(\ell)^{\overline{d}}
 $$ 
-where $e = d_\chi \overline{d} / \gcd(d_\chi,\overline{d})$ and $\overline{d}$ is a projective order:\ that is, $\overline{d} = 1,2,3,4$ or $5$.
+where $\overline{d} = 1,2,3,4$ or $5$.
 
 \item if $\ell | N'$, then
 $$
@@ -358,19 +375,15 @@ For the second part, if $\ell | N_\chi$ but $\ell \nmid N'$, then $\pi_\ell(f)$ 
 $$
 \rho_f(\sigma) = 
 \begin{pmatrix}
-\chi(\sigma)/a_{\ell} & 0 \\
+\chi_\ell(\sigma) \chi^\ell(\ell)/a_{\ell} & 0 \\
 0 & a_\ell \\
-\end{pmatrix}
+\end{pmatrix}.
 $$
-and
+Choose $\sigma$ so that $\chi_\ell(\sigma)=1$.  Then raising the above matrix to the $\overline{d}$-power yields a diagonal matrix.  Thus
 $$
-\rho_f(\sigma)^e = 
-\begin{pmatrix}
-a_{\ell}^{-e} & 0 \\
-0 & a_\ell^e \\
-\end{pmatrix}
+\chi^\ell(\ell)^{\overline{d}} = a_\ell^{2\overline{d}}
 $$
-is a diagonal matrix as both $d_\chi$ and $\overline{d}$ divide $e$.  Thus, $a_\ell^{e} = a_{\ell}^{-e}$ and $a_{\ell}^{2e} =1$ as desired.
+as desired.
 
 For the third part, $\pi_\ell(f)$ is supercuspidal again by the same Loeffler-Weinstein reference above which implies $a_\ell=0$.
 \end{proof}

@@ -75,11 +75,11 @@ class weight_one_FC(SageObject):
 			for d in facts:
 				ans += [d[0]]
 		elif len(key) == 3:
-			### at primes dividing the level (Formula is a_ell^{2d} = chi^{ell}(ell)^{2d})
+			### at primes dividing the level (Formula is a_ell^{2d} = chi^{ell}(ell)^{d})
 			non_ell_val = key[2]
 			ans = []
 			for d in [1,2,3,4,5]:
-				f = x**(2*d) - non_ell_val**(2*d)
+				f = x**(2*d) - non_ell_val**(d)
 				facts = f.factor()
 				for d in facts:
 					ans += [d[0]]
