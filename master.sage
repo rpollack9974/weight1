@@ -45,30 +45,34 @@ def collect_weight_one_data(Nmin,Nmax,verbose=0):
 		G = DirichletGroup(N)
 		Gs = G.galois_orbits()
 		for chi in Gs:
-			start_time = cputime(t)
-			psi = chi[0].minimize_base_ring()
-			out("---------------------------------------------------------")
-			out("---------------------------------------------------------")
-			out("Computing with "+str(psi))
-			out("---------------------------------------------------------")
-			out("---------------------------------------------------------")
-			A = wt1(psi,verbose=verbose)
-			if len(A.exotic_forms()) > 0:
-				ans += [A]
-				out("Saving to file")
-				f = open("DATA/weight1.data",'a')
-				f.write('\n'+str(A)+'\n')
-				if not A.is_fully_computed():
-					f.write('NOT FULLY COMPUTED: PROBABLY CM PROBLEM HERE\n')
-				f.write(str(A.exotic_forms())+str('\n'))
-				f.close()
-				out("*******************************************************")
-				out(str(ans))
-				out("*******************************************************")
-				save(EXOTIC_PURE,"EXOTIC")
-			else:
-				out("No exotic forms")
-			out("Time: "+str(cputime(t)-start_time)+" -- Level: "+str(psi.modulus())+" -- Total time: "+str(cputime(t)))
+			locally_okay = true
+			for ell in prime_divisors(N):
+				locally_okay = locally_okay and chi[0](-1)==-1 and not steinberg(chi[0],ell) and not bad_rps(chi[0],ell)
+			if locally_okay:
+				start_time = cputime(t)
+				psi = chi[0].minimize_base_ring()
+				out("---------------------------------------------------------")
+				out("---------------------------------------------------------")
+				out("Computing with "+str(psi))
+				out("---------------------------------------------------------")
+				out("---------------------------------------------------------")
+				A = wt1(psi,verbose=verbose)
+				if len(A.exotic_forms()) > 0:
+					ans += [A]
+					out("Saving to file")
+					f = open("DATA/weight1.data",'a')
+					f.write('\n'+str(A)+'\n')
+					if not A.is_fully_computed():
+						f.write('NOT FULLY COMPUTED: PROBABLY CM PROBLEM HERE\n')
+					f.write(str(A.exotic_forms())+str('\n'))
+					f.close()
+					out("*******************************************************")
+					out(str(ans))
+					out("*******************************************************")
+					save(EXOTIC_PURE,"EXOTIC")
+				else:
+					out("No exotic forms")
+				out("Time: "+str(cputime(t)-start_time)+" -- Level: "+str(psi.modulus())+" -- Total time: "+str(cputime(t)))
 	return ans
 
 def out(str):

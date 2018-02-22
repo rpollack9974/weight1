@@ -590,15 +590,16 @@ class wt1(SageObject):
 		chi = self.neben()
 		N = chi.modulus()
 		Nc = chi.conductor()
+		Qchi = self.Qchi()
 
-		ps = [p for p in primes(MAX_PRIME_TO_CHOOSE_TO_USE) if N.valuation(p) == Nc.valuation(p) and \
+		ps = [(p,Qchi.prime_above(p).residue_class_degree()) for p in primes(MAX_PRIME_TO_CHOOSE_TO_USE) if N.valuation(p) == Nc.valuation(p) and \
 				not fail_efficiency_test(p,chi) and self.primes_used().count(p) == 0 ]
 		self.output(5,"Choosing among primes: "+str(ps))
 		if len(ps) > 0:
-			scores = [score(p,chi) for p in ps]
+			scores = [score(p[0],chi) for p in ps]
 			m = min(scores)
 			i = scores.index(m)
-			p = ps[i]
+			p = ps[i][0]
 			return ZZ(p)
 		else:
 			p = 2
