@@ -56,7 +56,7 @@ class wt1(SageObject):
 										the conductor of chi.  If there is such a prime then, the local Galois repn
 										at q has infinite image and thus is incompatible with a weight 1 form
 									(2) if there is a ramified principal series prime q|N (e.g. q divides the conductor
-										of chi with the same multiplcity it divides N) such that the q-primary part
+										of chi with the same multiplicity it divides N) such that the q-primary part
 										of chi has order > 5.  This is inconsistent with the shape of the local
 										representation at q for an A4, S4 or A5 form.
 	self._bad_primes = list of primes which give a local obstruction
@@ -1034,6 +1034,7 @@ class wt1(SageObject):
 		chi = self.neben()
 		N = chi.modulus()
 		Nc = chi.conductor()	
+		d = f.disc()
 		spaces = [S for S in self.spaces() if S.multiplicity(f) > 0]
 		if must:
 			ps = [q for q in primes(MAX_PRIME_TO_CHOOSE_TO_USE) if self.primes_used().count(q) == 0 \
@@ -1054,30 +1055,41 @@ class wt1(SageObject):
 			self.output(5,"Grabbing: "+str(ps[0]))
 			return ps[0],true
 
-		# checking to see if there is a good prime already computed
-		ps = [S.p() for S in spaces if primes_used.count(S.p()) == 0 and is_good_prime_for_form(f,S.p())]
-		if len(ps) > 0:
-			self.output(5,"Already have good prime(s) to work with: "+str(ps))
-			return 0,false
-
-		self.output(5,"Seeking a better prime to use then what is available")
-		# no good prime already computed (and not used) found
-		ps = [p for p in primes(MAX_PRIME_TO_CHOOSE_TO_USE) if self.primes_used().count(p) == 0 and \
-				is_good_prime_for_form(f,p) and N.valuation(p) == Nc.valuation(p)]
-		self.output(5,"Choosing among: "+str(ps))
-		if len(ps) > 0:
-			p = best_prime_for_form(f,ps)
-			kp = f.modp_FC_field(p,alpha_p=True)
-			self.output(5,"Selecting "+str((p,kp[0])))
-			return p,true
+		# checking to see if it is worth to find another prime
+		ps_have = [S.p() for S in spaces if primes_used.count(S.p()) == 0 and is_good_prime_for_form(f,S.p()) \
+						and f.disc() % S.p() != 0]
+		ps_can_have = [p for p in primes(MAX_PRIME_TO_CHOOSE_TO_USE) if self.primes_used().count(p) == 0 and \
+						is_good_prime_for_form(f,p) and N.valuation(p) == Nc.valuation(p)]
+		if len(ps_have) > 0:
+			scores_have = [score_for_prime(f,p) for p in ps_have]
 		else:
-			self.output(5,"No good choice here")
+			scores_have = [Infinity]
+		if len(ps_can_have) > 0:
+			scores_can_have = [score_for_prime(f,p) for p in ps_can_have]
+		else:
+			scores_can_have = [Infinity]
+		m_have = min(scores_have)
+		m_can_have = min(scores_can_have)
+		if m_have < m_can_have:
+			self.output(5,"Already have good prime(s) to work with: "+str(ps_have))
 			return 0,false
+		else:
+			self.output(5,"Seeking a better prime to use then what is available")
+			self.output(5,"Choosing among: "+str(ps_can_have))
+			if len(ps_can_have) > 0:
+				p = best_prime_for_form(f,ps_can_have)
+				kp = f.modp_FC_field(p,alpha_p=True)
+				self.output(5,"Selecting "+str((p,kp[0])))
+				return p,true
+			else:
+				self.output(5,"No good choice here")
+				return 0,false
 					
 	def find_best_prime_for_form(self,f):
 		d = f.disc()
 		ps = self.primes_used()
-		ps = [p for p in ps if self.space_at_p(p).unique() and d % p != 0]
+		ps = [p for p in ps if self.space_at_p(p).multiplicity(f) > 0 and d % p != 0]
+		self.output(5,"Finding best prime from primes already computed")
 		return best_prime_for_form(f,ps)
 
 
@@ -1111,11 +1123,13 @@ class wt1(SageObject):
 				while not done:
 					p,bool = self.find_new_prime(f,primes_used,must=need_more_primes)
 					if bool:
-						self.output(5,"grabbing another prime to help with computation")
+						#self.output(5,"A:grabbing another prime to help with computation")
 						self.use_new_prime(p)
+						need_more_primes = false
 						T = self.unique_space()
 						if T.multiplicity(f) == 0:
 							done = true
+							self.output(5,"Form eliminated")
 							break
 					p = self.find_best_prime_for_form(f)
 					S = self.space_at_p(p) #!  is it unique??
@@ -1153,7 +1167,7 @@ class wt1(SageObject):
 						self.fully_excise_form(f.hecke())
 						done = true
 					else:
-						self.output(5,"grabbing another prime to help with computation")
+						self.output(5,"Grabbing another prime to help with computation")
 				if not done:
 					break
 
@@ -1750,7 +1764,7 @@ def good_finite_field(kp):
 		return true
 	elif p == 3 and kp.degree() <= 6:
 		return true
-	elif p == 5 and kp.degree() <= 1:
+	elif p == 5 and kp.degree() <= 2:
 		return true
 	elif kp.degree() == 1:
 		return true
@@ -1790,8 +1804,8 @@ def score_for_prime(f,p):
 
 def best_prime_for_form(f,ps):
 	v = [score_for_prime(f,q) for q in ps]
-	print ps
-	print v
+	print "primes:",ps
+	print "rating of primes:",v
 	m = min(v)
 	i = v.index(m)
 	return ps[i]
