@@ -1030,34 +1030,48 @@ class wt1(SageObject):
 		return C
 
 
-	def find_next_prime(self,f,primes_used,must=False):
+	def find_new_prime(self,f,primes_used,must=False):
 		chi = self.neben()
 		N = chi.modulus()
 		Nc = chi.conductor()	
 		spaces = [S for S in self.spaces() if S.multiplicity(f) > 0]
-		ps = [S.p() for S in spaces if primes_used.count(S.p()) == 0 and is_good_prime_for_form(f,S.p())]
-		print "A",ps
+		if must:
+			ps = [q for q in primes(MAX_PRIME_TO_CHOOSE_TO_USE) if self.primes_used().count(q) == 0 \
+					and N.valuation(q) == Nc.valuation(q)]
+			self.output(5,"Must get new prime")
+			self.output(5,"Choosing among: "+str(ps))
+			assert len(ps) > 0,"uh oh" #!
+			p = best_prime_for_form(f,ps)
+			kp = f.modp_FC_field(p,alpha_p=True)
+			self.output(5,"Selecting "+str((p,kp[0])))
+			return p,true
+
+		# checking to see if there is a great prime to use
+		ps = [p for p in primes(6) if self.primes_used().count(p) == 0 and is_good_prime_for_form(f,p,great=true)]
+		self.output(5,"Great primes to work with: "+str(ps))
 		if len(ps) > 0:
-			return best_prime_for_form(f,ps)
+			self.output(5,"Grabbing: "+str(ps[0]))
+			return ps[0],true
+
+		# checking to see if there is a good prime already computed
+		ps = [S.p() for S in spaces if primes_used.count(S.p()) == 0 and is_good_prime_for_form(f,S.p())]
+		if len(ps) > 0:
+			self.output(5,"Already have good prime(s) to work with: "+str(ps))
+			return 0,false
+
+		self.output(5,"Seeking a better prime to use then what is available")
 		# no good prime already computed (and not used) found
 		ps = [q for q in primes(MAX_PRIME_TO_CHOOSE_TO_USE) if self.primes_used().count(q) == 0 and \
 				is_good_prime_for_form(f,q) and N.valuation(q) == Nc.valuation(q)]
-		print "B",ps
+		self.output(5,"Choosing among: "+str(ps))
 		if len(ps) > 0:
-			return best_prime_for_form(f,ps)
-		# no good prime used below upper bound
-		if not must:
-			ps = [S.p() for S in spaces if primes_used.count(S.p()) == 0]
-			print "C",ps
-			assert len(ps) > 0,"uh oh"
-			return best_prime_for_form(f,ps)
+			p = best_prime_for_form(f,ps)
+			kp = f.modp_FC_field(p,alpha_p=True)
+			self.output(5,"Selecting "+str((p,kp[0])))
+			return p,true
 		else:
-			self.output(5,"POSSIBLY POOR CHOICE OF PRIME HERE BECAUSE NO ALTERNATIVE IS BETTER")
-			ps = [q for q in primes(MAX_PRIME_TO_CHOOSE_TO_USE) if self.primes_used().count(q) == 0 \
-					and N.valuation(q) == Nc.valuation(q)]
-			print "D",ps
-			assert len(ps) > 0,"uh oh"
-			return best_prime_for_form(f,ps)
+			self.output(5,"No good choice here")
+			return 0,false
 					
 	def find_best_prime_for_form(self,f):
 		d = f.disc()
@@ -1090,12 +1104,12 @@ class wt1(SageObject):
 			if self.unique_space().multiplicity(f) > 0:
 				done = false
 				self.output(5,"Working with the form: "+str(f))
+				self.output(5,"    ----")
 				primes_used = []
 
 				while not done:
-					p = self.find_next_prime(f,primes_used,must=need_more_primes)
-					ps_f = [q for q in self.primes_used() if self.space_at_p(q).multiplicity(f) > 0]
-					if ps_f.count(p) == 0:
+					p,bool = self.find_new_prime(f,primes_used,must=need_more_primes)
+					if bool:
 						self.output(5,"grabbing another prime to help with computation")
 						self.use_new_prime(p)
 						T = self.unique_space()
@@ -1733,7 +1747,7 @@ def good_finite_field(kp):
 	f = kp.degree()
 	if p == 2:
 		return true
-	elif p == 3 and kp.degree() <= 4:
+	elif p == 3 and kp.degree() <= 6:
 		return true
 	elif p == 5 and kp.degree() <= 1:
 		return true
@@ -1741,14 +1755,29 @@ def good_finite_field(kp):
 		return true
 	return false
 
-def is_good_prime_for_form(f,p):
+def great_finite_field(kp):
+	p = kp.characteristic()
+	f = kp.degree()
+	if p == 2:
+		return true
+	elif p == 3 and kp.degree() <= 2:
+		return true
+	elif p == 5 and kp.degree() == 1:
+		return true
+	else:
+		return false
+
+def is_good_prime_for_form(f,p,great=false):
 	chi = f.chi()
 	N = chi.modulus()
 	Nc = chi.conductor()
 	if N.valuation(p) != Nc.valuation(p):
 		return true
 	lf,a,b = f.modp_FC_field(p,alpha_p=True)
-	return good_finite_field(lf)
+	if great:
+		return great_finite_field(lf)
+	else:
+		return good_finite_field(lf)
 
 def score_for_prime(f,p):
 	lf,a,b = f.modp_FC_field(p,alpha_p=True)
@@ -1756,10 +1785,12 @@ def score_for_prime(f,p):
 	if p <= 3:
 		return p**(sqrt(d*1.0))
 	else:
-		return p^d
+		return p**d
 
 def best_prime_for_form(f,ps):
 	v = [score_for_prime(f,q) for q in ps]
+	print ps
+	print v
 	m = min(v)
 	i = v.index(m)
 	return ps[i]
