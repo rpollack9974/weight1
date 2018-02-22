@@ -68,7 +68,7 @@ def collect_weight_one_data(Nmin,Nmax,verbose=0):
 				save(EXOTIC_PURE,"EXOTIC")
 			else:
 				out("No exotic forms")
-			out("Time: "+str(cputime(t)-start_time)+" -- Level -- "+str(psi.modulus())+" -- Total time: "+str(cputime(t)))
+			out("Time: "+str(cputime(t)-start_time)+" -- Level: "+str(psi.modulus())+" -- Total time: "+str(cputime(t)))
 	return ans
 
 def out(str):
