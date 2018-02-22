@@ -3,9 +3,8 @@
 # minpoly_over takes (alpha,K,phi) but K is the domain of phi
 
 ### Spped ups
-# check up to sturm bound to femove CM or just get more primes?
-# large split p's vs F_p^2's for small p
-# when alpha_p is in F_p^2
+# when integral basis is really slow (e.g. high order character?) could compute with extra primes
+# 	to attempt to avoid integral basis computation
 
 ###Problems
 # need to extend oldforms if STURM  increases
@@ -150,6 +149,11 @@ class wt1(SageObject):
 
 		self.compute_old_exotic()
 		self.excise_lower_bound_forms(tag="old_exotic")
+		if self.is_fully_computed():
+			self.add_data_to_exotic()
+			return
+
+		self.extra_mod_p_before_integral_basis()
 		if self.is_fully_computed():
 			self.add_data_to_exotic()
 			return
@@ -558,7 +562,23 @@ class wt1(SageObject):
 					break
 		self.set_CM(keep)
 
-	def next_good_prime(self,form=None):
+	def extra_mod_p_before_integral_basis(self):
+		chi = self.neben()
+		N = chi.modulus()
+		Nc = chi.conductor()
+
+		ps = [p for p in primes(10) if not fail_efficiency_test(p,chi) and N.valuation(p) == Nc.valuation(p) \
+					and self.primes_used().count(p) == 0]
+		if len(ps) > 0:
+			self.output(5,"---------->have forms unaccounted for and have not yet used: "+str(ps))
+		for p in ps:
+			self.use_new_prime(p=p)
+			if self.is_fully_computed():
+				break
+		return
+
+
+	def next_good_prime(self):
 		"""returns the next prime not yet used in mod p computations (not supercuspidal and efficiently chosen)
 
 		a prime here is supercuspidal if the valuation of the level at the prime is not the same as the
@@ -570,27 +590,22 @@ class wt1(SageObject):
 		chi = self.neben()
 		N = chi.modulus()
 		Nc = chi.conductor()
-		primes_used = self.primes_used()
-		if len(primes_used) == 0:
-			p = 2
+
+		ps = [p for p in primes(MAX_PRIME_TO_CHOOSE_TO_USE) if N.valuation(p) == Nc.valuation(p) and \
+				not fail_efficiency_test(p,chi) and self.primes_used().count(p) == 0 ]
+		self.output(5,"Choosing among primes: "+str(ps))
+		if len(ps) > 0:
+			scores = [score(p,chi) for p in ps]
+			m = min(scores)
+			i = scores.index(m)
+			p = ps[i]
+			return ZZ(p)
 		else:
-		    p = next_prime(max(primes_used))
-		need_more = false
-		while N.valuation(p) != Nc.valuation(p) or fail_efficiency_test(p,chi) or need_more:
-			p = next_prime(p)
-			if form != None:
-				lf,a,b = f.modp_FC_field(alpha_p=True)
-				need_more = lf.degree() > 1 and p <= MAX_PRIME_TO_CHOOSE_TO_USE
-
-		if p > MAX_PRIME_TO_CHOOSE_TO_USE and form != None:
-			if len(primes_used) == 0:
-				p = 2
-			else:
-			    p = next_prime(max(primes_used))
-			while N.valuation(p) != Nc.valuation(p) or fail_efficiency_test(p,chi):
+			p = 2
+			self.output(5,"No good choice --- seeking out best alternative")
+			while N.valuation(p) != Nc.valuation(p) or fail_efficiency_test(p,chi) or self.primes_used().count(p) > 0:
 				p = next_prime(p)
-
-		return ZZ(p)
+				return ZZ(p)
 
 	def use_new_prime(self,p=None):
 		"""computes mod p modular symbols in weight p (for p = next good prime) and incorates this info into spaces"""
@@ -1017,7 +1032,7 @@ class wt1(SageObject):
 		S = ModularSymbols(chi**2,2,1).cuspidal_subspace()
 		r = 2
 		strong_sturm = ceil(Gamma0(N).index() / 3)+1  ###! CHECK THIS!!!!
-		self.output(5,"Computing integral basis of weight 2 space with precision "+str(strong_sturm))
+		self.output(5,"Computing integral basis of level "+str(N)+" weight 2 space with precision "+str(strong_sturm))
 		B = S.q_expansion_basis(strong_sturm)
 		Kf = phi.codomain()
 		R = PowerSeriesRing(Kf,'q',default_prec=strong_sturm)
@@ -1050,7 +1065,7 @@ class wt1(SageObject):
 		# checking to see if there is a great prime to use
 		ps = [p for p in primes(6) if self.primes_used().count(p) == 0 and is_good_prime_for_form(f,p,great=true) \
 					and N.valuation(p) == Nc.valuation(p)]
-		self.output(5,"Great primes to work with: "+str(ps))
+		self.output(5,"Great new primes to work with: "+str(ps))
 		if len(ps) > 0:
 			self.output(5,"Grabbing: "+str(ps[0]))
 			return ps[0],true
@@ -1315,7 +1330,7 @@ class wt1(SageObject):
 					evs_modp[q] = [y for y in kf if phibar_lf(y)==alpha][0] # a_p is in k_f and not l_f
 			pi_q = minpoly_over(evs_modp[q],kchi,phibar)
 			hecke[q] = FC.possible_Artin_polys(pi_q,chi,q,p,upper=self.upper_bound())
-			self.output(100,"With prime "+str(q)+" found "+str(hecke[q]))
+#			self.output(100,"With prime "+str(q)+" found "+str(hecke[q]))
 			if len(hecke[q]) == 0:
 				# Not Artin type
 				fail = true
@@ -1742,6 +1757,18 @@ def merge_disjoint_dicts(x,y):
 		x[k] = y[k]
 
 	return x
+
+def score(p,chi):
+	N = chi.modulus()
+	Nc = chi.conductor()
+	if N.valuation(p) != Nc.valuation(p):
+		return true
+	Qchi = chi.base_ring()
+	if Qchi == QQ:
+		Qchi = CyclotomicField(2)
+	kp = Qchi.prime_above(p).residue_field()
+	f = kp.degree()
+	return p**f
 
 ## playing with this to find good primes to use
 def fail_efficiency_test(p,chi):
