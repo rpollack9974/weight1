@@ -23,7 +23,7 @@ RECURSION_LEVEL = 0
 MAX_PRIME_TO_CHOOSE_TO_USE = 50
 LOG_FILE = "DATA/log_file"
 USE_MAGMA = True
-f = open(LOG_FILE,'w')
+f = open(LOG_FILE,'a')
 f.write("STARTING COMPUTATION\n")
 f.close()
 
