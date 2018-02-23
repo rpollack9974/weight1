@@ -1030,11 +1030,11 @@ class wt1(SageObject):
 	def find_integral_basis(self,phi):
 		chi = self.neben()
 		N = chi.modulus()
-		S = ModularSymbols(chi**2,2,1).cuspidal_subspace()
+#		S = ModularSymbols(chi**2,2,1).cuspidal_subspace()
 		r = 2
 		strong_sturm = ceil(Gamma0(N).index() / 3)+1  ###! CHECK THIS!!!!
 		self.output(5,"Computing integral basis of level "+str(N)+" weight 2 space with precision "+str(strong_sturm))
-		B = S.q_expansion_basis(strong_sturm)
+		B = form_q_expansion_basis(chi**2,2,strong_sturm)
 		Kf = phi.codomain()
 		R = PowerSeriesRing(Kf,'q',default_prec=strong_sturm)
 		C = []
