@@ -54,7 +54,7 @@ def wt1_space_modp(p,chi,lower=0,verbose=False,sturm=None,log=None):
 	kchi = pchi.residue_field()
 	output(log,verbose,1,"    Residue field has degree "+str(kchi.degree()))
 	if kchi.degree() > 1:
-		output(log,verbose,1,"###############################")
+		output(log,verbose,1,"    ###############################")
 
 	output(log,verbose,3,"     Forming modsym space")
 	M = ModularSymbols(chi,p,1,kchi).cuspidal_subspace()

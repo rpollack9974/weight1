@@ -3,6 +3,7 @@ attach("weight1_FC.py")
 attach("weight1_decompose.py")
 attach("weight1_forms.py")
 attach("modp_space.py")
+attach("magma_conversion.py")
 
 try: 
 	already_loaded == true
@@ -21,6 +22,7 @@ STURM = 20
 RECURSION_LEVEL = 0
 MAX_PRIME_TO_CHOOSE_TO_USE = 50
 LOG_FILE = "DATA/log_file"
+USE_MAGMA = True
 f = open(LOG_FILE,'w')
 f.write("STARTING COMPUTATION\n")
 f.close()
@@ -38,9 +40,13 @@ f.close()
 ## EXOTIC_PURE is a dictionary that contains all of the data of the forms computed.  It's keys are only the
 ## characters which have exotic forms and does not include the galois conjugate character information.
 
+## The global variable USE_MAGMA, if true, causes the programs to use Magma to compute q-expansion bases
+
+
 def collect_weight_one_data(Nmin,Nmax,verbose=0):
 	t = cputime()
 	ans = []
+	Nmin = max(2,Nmin)
 	for N in range(Nmin,Nmax+1):
 		G = DirichletGroup(N)
 		Gs = G.galois_orbits()
@@ -67,7 +73,6 @@ def collect_weight_one_data(Nmin,Nmax,verbose=0):
 					f.write(str(A.exotic_forms())+str('\n'))
 					f.close()
 					out("*******************************************************")
-					out(str(ans))
 					out("*******************************************************")
 					save(EXOTIC_PURE,"EXOTIC")
 				else:

@@ -17,6 +17,7 @@ CM = q-expansions of CM forms currently taken from Buzzard-Lauder website
 EXOTIC = precomputed exotic forms 
 STURM = bound used to determine how many Hecke operators to use.  
 		(This number should be MUCH smaller than the true Sturm bound.)
+USE_MAGMA = boolean on whether or not Magma should be used to compute q-expansion bases
 """
 
 class wt1(SageObject):
@@ -510,7 +511,6 @@ class wt1(SageObject):
 			phi = embedding from Q(chi) to K_f
 			m = dimension of the generalized eigenspace corresponding to this CM form 
 		"""
-		self.output(5,"------------------")		
 		self.output(5,"Computing CM forms")
 		chi = self.neben()
 		N = chi.modulus()
@@ -630,6 +630,7 @@ class wt1(SageObject):
 		self.remove_non_Artin_CM(p)
 		self.remove_non_Artin_old_exotic(p)
 		self.compute_bounds()
+		self.output(5,"   After intersections the the lower bound is "+str(self.lower_bound())+" and the upper bound is "+str(self.upper_bound()))
 		return 
 
 	def cut_down_to_unique(self,verbose=false):
@@ -1233,7 +1234,7 @@ class wt1(SageObject):
 		x = Rf.gen()
 		chip = chi.change_ring(phibar).change_ring(phibar_lf)
 		if lf.degree() > 1:
-			self.output(5,"##################Using extension of F_"+str(p)+"= of degree "+str(lf.degree()))
+			self.output(5,"    ##############Using extension of F_"+str(p)+"= of degree "+str(lf.degree()))
 		M = ModularSymbols(chip,p,1,lf).cuspidal_subspace()
 		if full_sturm != 0:
 			ps = primes(full_sturm)
