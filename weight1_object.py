@@ -154,10 +154,11 @@ class wt1(SageObject):
 			self.add_data_to_exotic()
 			return
 
-		self.extra_mod_p_before_integral_basis()
-		if self.is_fully_computed():
-			self.add_data_to_exotic()
-			return
+		# This code was meant to prevent runnign integral basis which is no longer important if we use Magma
+		# self.extra_mod_p_before_integral_basis()
+		# if self.is_fully_computed():
+		# 	self.add_data_to_exotic()
+		# 	return
 
 		self.output(5,"*********************************PHASE 2*********************************")
 		need_more_sturm = self.verify_remaining_forms()
@@ -1770,7 +1771,10 @@ def score(p,chi):
 		Qchi = CyclotomicField(2)
 	kp = Qchi.prime_above(p).residue_field()
 	f = kp.degree()
-	return p**f
+	if p == 2 or p == 3:
+		return p**sqrt(f*1.0)
+	else:
+		return p**f
 
 ## playing with this to find good primes to use
 def fail_efficiency_test(p,chi):
