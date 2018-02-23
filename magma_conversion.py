@@ -17,14 +17,13 @@ def dc_sage_to_magma(chi):
 	chi_m = Gm.DirichletCharacterFromValuesOnUnitGenerators(vals)
 	return chi_m
 
-def form_q_expansion_basis(chi,k,prec,use_magma=false):
-	if not use_magma:
+def form_q_expansion_basis(chi,k,prec):
+	if not USE_MAGMA:
 		return ModularSymbols(chi,k,1).cuspidal_subspace().q_expansion_basis(prec)
 	else:
 		chi_m = dc_sage_to_magma(chi)
 		B = magma.ModularSymbols(chi_m,k,1).CuspidalSubspace().qExpansionBasis(prec)
 		C = []
 		for f in B:
-			print f
 			C += [ps_magma_to_sage(f)]
 		return C
