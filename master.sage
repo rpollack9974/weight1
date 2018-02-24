@@ -11,13 +11,21 @@ except NameError:
 	print "loading CM dictionary"
 	CM = load("DATA/CM_forms.1-600")
 	attach("sage-instructions.sage")
-	print "loading Buzzard-Lauder CM database"
-	load("DATA/dihedral_forms.sage")
+#	print "loading Buzzard-Lauder CM database"
+#	load("DATA/dihedral_forms.sage")
 	already_loaded = true
 
 FC = weight_one_FC()
-EXOTIC = {}
-EXOTIC_PURE = {}
+# EXOTIC = {}
+# EXOTIC_WO_CONJUGATES = {}
+try:
+	print "loading precomputed data"
+	EXOTIC_WO_CONJUGATES = load("EXOTIC.sobj")
+	print "extending data by galois conjugates"
+	EXOTIC = extend_by_galois_conjugates(EXOTIC_WO_CONJUGATES)
+except IOError:
+	EXOTIC_WO_CONJUGATES = {}
+	EXOTIC = {}
 STURM = 20
 RECURSION_LEVEL = 0
 MAX_PRIME_TO_CHOOSE_TO_USE = 50
@@ -37,8 +45,8 @@ f.close()
 ## 		1) When data for chi is recorded, the Galois conjugate data for all Galois conjugates of chi is recorded
 ##		2) When a space is eliminated for local reasons this is not recorded.
 
-## EXOTIC_PURE is a dictionary that contains all of the data of the forms computed.  It's keys are only the
-## characters which have exotic forms and does not include the galois conjugate character information.
+## EXOTIC_WO_CONJUGATES is a dictionary that contains all of the data of the forms computed.  It's keys 
+## do not include the galois conjugate characters of the computed character spaces
 
 ## The global variable USE_MAGMA, if true, causes the programs to use Magma to compute q-expansion bases
 
@@ -74,11 +82,15 @@ def collect_weight_one_data(Nmin,Nmax,verbose=0):
 					f.close()
 					out("*******************************************************")
 					out("*******************************************************")
-					save(EXOTIC_PURE,"EXOTIC")
+					save(EXOTIC_WO_CONJUGATES,"EXOTIC")
 				else:
 					out("No exotic forms")
 				out("Time: "+str(cputime(t)-start_time)+" -- Level: "+str(psi.modulus())+" -- Total time: "+str(cputime(t)))
+	save(EXOTIC_WO_CONJUGATES,"EXOTIC")
 	return ans
+
+
+
 
 def out(str):
 	if LOG_FILE != None:
@@ -86,3 +98,4 @@ def out(str):
 		f.write(str+'\n')
 		f.close()
 	print str
+

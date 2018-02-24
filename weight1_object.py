@@ -1487,12 +1487,11 @@ class wt1(SageObject):
 		for sigma in G:
 			chi_sigma = act_galois_char(chi,sigma)
 			EXOTIC[chi_sigma] = []
-		if self.num_exotic_forms() > 0:
-			EXOTIC_PURE[chi] = []
+		EXOTIC_WO_CONJUGATES[chi] = []
 		for F in self.exotic_forms():
 			f = F[0]
 			phi = F[1]
-			EXOTIC_PURE[chi] += [[f,chi,phi]]
+			EXOTIC_WO_CONJUGATES[chi] += [[f,chi,phi]]
 			Kf = f.base_ring()
 			if Kf == QQ:
 				Kf = CyclotomicField(2)
@@ -1844,3 +1843,37 @@ def best_prime_for_form(f,ps):
 	return ps[i]
 
 
+## takes all of the computed data in E and computes galois conjugate data in galois conjugate characters
+def extend_by_galois_conjugates(E):
+	E_extended = {}
+	for chi in E.keys():
+		Qchi = chi.base_ring()
+		if Qchi == QQ:
+			Qchi = CyclotomicField(2)
+		G = Qchi.galois_group()
+		for sigma in G:
+			chi_sigma = act_galois_char(chi,sigma)
+			E_extended[chi_sigma] = []
+		for F in E[chi]:
+			f = F[0]
+			phi = F[2]
+			Kf = f.base_ring()
+			if Kf == QQ:
+				Kf = CyclotomicField(2)
+			G = Kf.galois_group()
+			for sigma in G:
+				chi_sigma = act_galois_char(chi.change_ring(phi),sigma)
+				chi_sigma,bool = normalize_character(chi_sigma)
+				# if not bool:
+				# 	self.output(5,"writing to file bad character "+str(chi_sigma))
+				# 	s = open("DATA/bad_characters",'a')
+				# 	s.write(str(chi_sigma)+str('\n'))
+				# 	s.close()
+				data = [act_galois_ps(f,sigma),chi_sigma,compose(sigma,phi)]
+				if not E.has_key(chi_sigma):
+					E_extended[chi_sigma] = []
+				# trying to clear out repeats
+				v = [F[0] for F in E_extended[chi_sigma]]
+				if v.count(data[0]) == 0:
+					E_extended[chi_sigma] += [data]
+	return E_extended
