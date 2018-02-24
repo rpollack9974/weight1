@@ -74,8 +74,7 @@ def collect_weight_one_data(Nmin,Nmax,verbose=0):
 					f.close()
 					out("*******************************************************")
 					out("*******************************************************")
-					save(EXOTIC_PURE,"EXOTIC_PURE")
-					save(EXOTIC,"EXOTIC")
+					save(EXOTIC_PURE,"EXOTIC")
 				else:
 					out("No exotic forms")
 				out("Time: "+str(cputime(t)-start_time)+" -- Level: "+str(psi.modulus())+" -- Total time: "+str(cputime(t)))
