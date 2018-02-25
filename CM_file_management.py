@@ -30,35 +30,34 @@ def form_CM_dict(fs,prec,Nmin=None,Nmax=None):
 		Nmax = Infinity
 	while r < len(fs):
 		f,eps = make_form(fs[r])
-		if eps.conductor() > Nmin and eps.conductor() < Nmax:
-			print eps
+		if r % 100 == 0:
+			print r,eps.modulus(),len(fs)
+		if eps.modulus() > Nmin and eps.modulus() < Nmax:
 			if f.precision_absolute()<prec:
-				print "extending:",eps
 				f = extend_qexpansion(f,eps,prec)
 			Kf = f.base_ring()
-			if Kf.degree() <= 11:
-				if Kf == QQ:
-					Kf = CyclotomicField(2)
-				G = Kf.galois_group()
-				for sigma in G:			
-					eps_sigma = act_galois_char(eps,sigma)
-					print sigma,eps_sigma
-					chi,bool = normalize_character(eps_sigma)
-					if bool:
-						if not CM.has_key(chi):
-							CM[chi] = []
-						K = chi(1).parent()
-						if K == QQ:
-							K = CyclotomicField(2)
-						L = eps_sigma(1).parent()
-						for phi in list(Hom(K,L)):
-							if chi.change_ring(phi) == eps_sigma:
-								break
-						data = (act_galois_ps(f,sigma),chi,phi)
-						if CM[chi].count(data) == 0:
-							CM[chi] += [(act_galois_ps(f,sigma),chi,phi)]
-			else:
-				print "SKIPPING BECAUSE OF BIG GALOIS GROUP"
+#			if Kf.degree() <= 11:
+			if Kf == QQ:
+				Kf = CyclotomicField(2)
+			G = Kf.galois_group()
+			for sigma in G:			
+				eps_sigma = act_galois_char(eps,sigma)
+				chi,bool = normalize_character(eps_sigma)
+				if bool:
+					if not CM.has_key(chi):
+						CM[chi] = []
+					K = chi(1).parent()
+					if K == QQ:
+						K = CyclotomicField(2)
+					L = eps_sigma(1).parent()
+					for phi in list(Hom(K,L)):
+						if chi.change_ring(phi) == eps_sigma:
+							break
+					data = (act_galois_ps(f,sigma),chi,phi)
+					if CM[chi].count(data) == 0:
+						CM[chi] += [(act_galois_ps(f,sigma),chi,phi)]
+			# else:
+			# 	print "SKIPPING BECAUSE OF BIG GALOIS GROUP",chi,r
 		r += 1
 		if eps.modulus() > Nmax:
 			break 

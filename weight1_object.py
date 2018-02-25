@@ -1723,11 +1723,26 @@ def normalize_character(eps):
 		eps = eps.minimize_base_ring()
 		return eps,True
 	else:
-		print "Problem with:"
-		print eps.modulus()
-		print eps
-		print "-------------"
-		return eps,False
+		print "problem at",eps
+		found = false
+		d = 0
+		while not found:
+			d += 1
+			L = CyclotomicField(N*d)
+			print "Trying",L
+			found = Hom(K,L).cardinality() > 0
+		phi = Hom(K,L)[0]
+		eps = eps.change_ring(phi)
+		eps = eps.minimize_base_ring()
+		return eps,True
+
+
+
+		# print "Problem with:"
+		# print eps.modulus()
+		# print eps
+		# print "-------------"
+		# return eps,False
 
 def act_galois_char(chi,sigma):
 	chis = chi.galois_orbit()

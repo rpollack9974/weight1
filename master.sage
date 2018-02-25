@@ -24,6 +24,7 @@ try:
 	print "extending data by galois conjugates"
 	EXOTIC = extend_by_galois_conjugates(EXOTIC_WO_CONJUGATES)
 except IOError:
+	print "no such data"
 	EXOTIC_WO_CONJUGATES = {}
 	EXOTIC = {}
 STURM = 20
