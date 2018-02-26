@@ -1189,6 +1189,7 @@ class wt1(SageObject):
 							self.fully_excise_form(f.hecke())
 						else:
 							#! multipicity too high!
+							need_more_primes = true
 							s = open('DATA/exotic_multiplicity_problem','a')
 							s.write(str(self.neben())+'\n')
 							s.close()
