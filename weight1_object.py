@@ -1871,7 +1871,7 @@ def extend_by_galois_conjugates(E):
 	for chi in E.keys():
 		z_ord = euler_phi(chi.order())
 		for a in range(1,z_ord+1):
-			chi,a
+			print chi,a
 			if gcd(a,z_ord) == 1:
 				E_extended[chi**a] = []
 		if len(E[chi]) > 0:
