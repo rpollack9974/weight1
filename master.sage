@@ -9,7 +9,7 @@ try:
 	already_loaded == true
 except NameError:
 	print "loading CM dictionary"
-	CM = load("DATA/CM_forms.1-600")
+	CM = load("DATA/CM_forms.1-1000")
 	attach("sage-instructions.sage")
 #	print "loading Buzzard-Lauder CM database"
 #	load("DATA/dihedral_forms.sage")
