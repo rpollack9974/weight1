@@ -1736,7 +1736,7 @@ def normalize_character(eps):
 			L = CyclotomicField(N*d)
 			print "Trying",L
 			found = Hom(K,L).cardinality() > 0
-			print "found big enough cyclotomic field"
+		print "found big enough cyclotomic field"
 		phi = Hom(K,L)[0]
 		eps = eps.change_ring(phi)
 		eps = eps.minimize_base_ring()
@@ -1871,9 +1871,11 @@ def extend_by_galois_conjugates(E):
 	for chi in E.keys():
 		z_ord = euler_phi(chi.order())
 		for a in range(1,z_ord+1):
+			chi,a
 			if gcd(a,z_ord) == 1:
 				E_extended[chi**a] = []
 		if len(E[chi]) > 0:
+			print "Forms found****!"
 			for F in E[chi]:
 				f = F[0]
 				phi = F[2]
