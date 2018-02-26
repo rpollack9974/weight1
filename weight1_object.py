@@ -1875,7 +1875,7 @@ def extend_by_galois_conjugates(E):
 			if gcd(a,z_ord) == 1:
 				E_extended[chi**a] = []
 		if len(E[chi]) > 0:
-			print "Forms found****!"
+			print "Forms found****!",chi
 			for F in E[chi]:
 				f = F[0]
 				phi = F[2]
@@ -1884,6 +1884,7 @@ def extend_by_galois_conjugates(E):
 					Kf = CyclotomicField(2)
 				G = Kf.galois_group()
 				for sigma in G:
+					print sigma					
 					chi_sigma = act_galois_char(chi.change_ring(phi),sigma)
 					chi_sigma = normalize_character(chi_sigma)
 					data = [act_galois_ps(f,sigma),chi_sigma,compose(sigma,phi)]
