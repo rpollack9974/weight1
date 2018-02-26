@@ -2,9 +2,7 @@
 ### Trivial TO DO
 # minpoly_over takes (alpha,K,phi) but K is the domain of phi
 
-### Spped ups
-# when integral basis is really slow (e.g. high order character?) could compute with extra primes
-# 	to attempt to avoid integral basis computation
+### Speed ups
 
 ###Problems
 # need to extend oldforms if STURM  increases
@@ -14,7 +12,10 @@ global variables in use:
 ------------------------
 FC = object which computes the Fourier coefficients of weight 1 exotic forms
 CM = q-expansions of CM forms currently taken from Buzzard-Lauder website
-EXOTIC = precomputed exotic forms 
+EXOTIC_WO_CONJUGATES = precomputed exotic forms -- only data for each chi up to Galois equivalence
+EXOTIC = precomputed exotic forms with all conjugate nebentypes included
+	EXOTIC_WO_CONJUGATES is saved to a file, the latter I don't know how to save because it includes
+	functions that arise from composing an embedding phi : Q(chi) --> K_f by a sigma in a Galois group
 STURM = bound used to determine how many Hecke operators to use.  
 		(This number should be MUCH smaller than the true Sturm bound.)
 USE_MAGMA = boolean on whether or not Magma should be used to compute q-expansion bases
@@ -132,7 +133,7 @@ class wt1(SageObject):
 			self.add_data_to_exotic()
 			return 
 
-		### can't yet handle the case where CM or old exotic are not distinguised by their min polys (e.g. N=396)
+		###! can't yet handle the case where CM or old exotic are not distinguised by their min polys (e.g. N=396)
 		bool = self.CM_old_exotic_sturm_check()
 		if not bool:
 			self.output(2,"GIVING UP HERE AND WRITING PROBLEM CHARACTER TO DATA/identical_minpoly_fail")
@@ -484,8 +485,7 @@ class wt1(SageObject):
 			G_old = DirichletGroup(Nc * d)
 			Nt = N / (Nc * d)
 			chi_old = G_old(chi)
-			chi_old,bool = normalize_character(chi_old)
-			assert bool,"ugh"
+			chi_old = normalize_character(chi_old)
 			chi_old = chi_old.minimize_base_ring()
 			if recursive:
 				if not EXOTIC.has_key(chi_old):
@@ -766,7 +766,7 @@ class wt1(SageObject):
 					excised = false
 					hecke_used += [h]
 					for S in self.spaces():
-						if S.unique():
+						if S.unique(): #! why this as opposed to just h unique in S?
 							p = S.p()
 							hp = deepcopy(h)
 							if hp.has_key(p):
@@ -801,7 +801,6 @@ class wt1(SageObject):
 			if success:
 				if tag == "CM":
 					self.output(4,"All CM forms removed")
-#					self.output(4,"--------------------")
 				else:
 					self.output(4,"All old exotic forms removed")
 				self.compute_bounds()	
@@ -1126,6 +1125,7 @@ class wt1(SageObject):
 		We then add this form and all of its Galois conjugates over Q(chi) to the "exotic_forms" field.
 		"""
 		chi = self.neben()
+		Qchi = self.Qchi()
 		need_more_sturm = false
 		need_more_primes = false
 		self.output(5,"Running through remaining forms and verifying that they come from weight 1")
@@ -1181,8 +1181,17 @@ class wt1(SageObject):
 							fqs = galois_conjugates(fq,self.neben(),phi)
 							for data in fqs:
 								self.add_exotic_form(data)
-						##!! need to check multiplicity here --- this is cheating!
-						self.fully_excise_form(f.hecke())
+						min_mult = min([S.hecke_multiplicity(f.hecke()) for S in self.spaces() if S.unique()])
+						Kf = fq[0].parent()
+						self.output(5,"Checking multiplicity.  Multiplicity from found form: "+str(Kf.degree() / Qchi.degree())+ \
+										". Multiplicity present in space: "+str(min_mult))
+						if min_mult == Kf.degree() / Qchi.degree():
+							self.fully_excise_form(f.hecke())
+						else:
+							#! multipicity too high!
+							s = open('DATA/exotic_multiplicity_problem','a')
+							s.write(str(self.neben())+'\n')
+							s.close()
 						done = true
 					else:
 						self.output(5,"Grabbing another prime to help with computation")
@@ -1478,16 +1487,17 @@ class wt1(SageObject):
 	def add_data_to_exotic(self):
 		"""adds the exotic forms computed to the global variable EXOTIC
 
-		The data of exotic forms computed is added to EXOTIC[chi] where chi is the nebentype character.
+		The data of exotic forms computed is added to EXOTIC[chi] where chi is the nebentype character
+		as well as to EXOTIC_WO_CONJUGATES.
 		The data for EXOTIC[sigma chi] is also added for each sigma in Gal(Q(chi)/Q).
 		"""
+		#! should repace character conjugation by powers
 		chi = self.neben()
-		Qchi = self.Qchi()
-		G = Qchi.galois_group()
-		for sigma in G:
-			chi_sigma = act_galois_char(chi,sigma)
-			EXOTIC[chi_sigma] = []
 		EXOTIC_WO_CONJUGATES[chi] = []
+		z_ord = euler_phi(chi.order())
+		for a in range(1,z_ord+1):
+			if gcd(a,z_ord) == 1:
+				EXOTIC[chi**a] = []
 		for F in self.exotic_forms():
 			f = F[0]
 			phi = F[1]
@@ -1498,12 +1508,7 @@ class wt1(SageObject):
 			G = Kf.galois_group()
 			for sigma in G:
 				chi_sigma = act_galois_char(chi.change_ring(phi),sigma)
-				chi_sigma,bool = normalize_character(chi_sigma)
-				if not bool:
-					self.output(5,"writing to file bad character "+str(chi_sigma))
-					s = open("DATA/bad_characters",'a')
-					s.write(str(chi_sigma)+str('\n'))
-					s.close()
+				chi_sigma = normalize_character(chi_sigma)
 				data = [act_galois_ps(f,sigma),chi_sigma,compose(sigma,phi)]
 				if not EXOTIC.has_key(chi_sigma):
 					EXOTIC[chi_sigma] = []
@@ -1721,9 +1726,9 @@ def normalize_character(eps):
 		phi = Hom(K,L)[0]
 		eps = eps.change_ring(phi)
 		eps = eps.minimize_base_ring()
-		return eps,True
+		return eps
 	else:
-		print "problem at",eps
+		print "Handling problem at:",eps
 		found = false
 		d = 0
 		while not found:
@@ -1731,10 +1736,12 @@ def normalize_character(eps):
 			L = CyclotomicField(N*d)
 			print "Trying",L
 			found = Hom(K,L).cardinality() > 0
+			print "found big enough cyclotomic field"
 		phi = Hom(K,L)[0]
 		eps = eps.change_ring(phi)
 		eps = eps.minimize_base_ring()
-		return eps,True
+		print "Normalized form:",eps
+		return eps
 
 
 
@@ -1862,33 +1869,26 @@ def best_prime_for_form(f,ps):
 def extend_by_galois_conjugates(E):
 	E_extended = {}
 	for chi in E.keys():
-		Qchi = chi.base_ring()
-		if Qchi == QQ:
-			Qchi = CyclotomicField(2)
-		G = Qchi.galois_group()
-		for sigma in G:
-			chi_sigma = act_galois_char(chi,sigma)
-			E_extended[chi_sigma] = []
-		for F in E[chi]:
-			f = F[0]
-			phi = F[2]
-			Kf = f.base_ring()
-			if Kf == QQ:
-				Kf = CyclotomicField(2)
-			G = Kf.galois_group()
-			for sigma in G:
-				chi_sigma = act_galois_char(chi.change_ring(phi),sigma)
-				chi_sigma,bool = normalize_character(chi_sigma)
-				# if not bool:
-				# 	self.output(5,"writing to file bad character "+str(chi_sigma))
-				# 	s = open("DATA/bad_characters",'a')
-				# 	s.write(str(chi_sigma)+str('\n'))
-				# 	s.close()
-				data = [act_galois_ps(f,sigma),chi_sigma,compose(sigma,phi)]
-				if not E.has_key(chi_sigma):
-					E_extended[chi_sigma] = []
-				# trying to clear out repeats
-				v = [F[0] for F in E_extended[chi_sigma]]
-				if v.count(data[0]) == 0:
-					E_extended[chi_sigma] += [data]
+		z_ord = euler_phi(chi.order())
+		for a in range(1,z_ord+1):
+			if gcd(a,z_ord) == 1:
+				E_extended[chi**a] = []
+		if len(E[chi]) > 0:
+			for F in E[chi]:
+				f = F[0]
+				phi = F[2]
+				Kf = f.base_ring()
+				if Kf == QQ:
+					Kf = CyclotomicField(2)
+				G = Kf.galois_group()
+				for sigma in G:
+					chi_sigma = act_galois_char(chi.change_ring(phi),sigma)
+					chi_sigma = normalize_character(chi_sigma)
+					data = [act_galois_ps(f,sigma),chi_sigma,compose(sigma,phi)]
+					if not E.has_key(chi_sigma):
+						E_extended[chi_sigma] = []
+					# trying to clear out repeats
+					v = [F[0] for F in E_extended[chi_sigma]]
+					if v.count(data[0]) == 0:
+						E_extended[chi_sigma] += [data]
 	return E_extended
