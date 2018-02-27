@@ -1,49 +1,31 @@
 
-
-def characters_with_CM_forms(fs):
-	chrs = []
-	for r in range(len(fs)):
-		if r%100==0:
-			print "At ",r
-		eps = make_character(fs[r][2],fs[r][1])
-		chi,bool = normalize_character(eps)
-		if bool:
-			if chrs.count(chi)==0:
-				chrs += [chi]
-		else:
-			print "Problem with:"
-			print eps.modulus()
-			print eps
-			print "-------------"
-		if eps.modulus()>200:
-			break
-
-	return chrs
-
-def form_CM_dict(fs,prec,Nmin=None,Nmax=None):
+def form_CM_dict(fs,prec,Nmax=None):
 	CM = {}
 
 	r = 0
-	if Nmin == None:
-		Nmin = 0
 	if Nmax == None:
 		Nmax = Infinity
 	while r < len(fs):
 		f,eps = make_form(fs[r])
 		if r % 100 == 0:
 			print r,eps.modulus(),len(fs)
-		if eps.modulus() > Nmin and eps.modulus() < Nmax:
-			if f.precision_absolute()<prec:
+		N = eps.modulus()
+		pass_locally = true
+		for ell in prime_divisors(N):
+			if steinberg(eps,ell) or bad_rps(eps,ell):
+				pass_locally = false
+				break
+		if pass_locally and eps.modulus() < Nmax:
+			if f.precision_absolute() < prec:
 				f = extend_qexpansion(f,eps,prec)
 			Kf = f.base_ring()
-#			if Kf.degree() <= 11:
-			if Kf == QQ:
-				Kf = CyclotomicField(2)
-			G = Kf.galois_group()
-			for sigma in G:			
-				eps_sigma = act_galois_char(eps,sigma)
-				chi,bool = normalize_character(eps_sigma)
-				if bool:
+			if Kf.degree() <= 11:
+				if Kf == QQ:
+					Kf = CyclotomicField(2)
+				G = Kf.galois_group()
+				for sigma in G:			
+					eps_sigma = act_galois_char(eps,sigma)
+					chi = normalize_character(eps_sigma)
 					if not CM.has_key(chi):
 						CM[chi] = []
 					K = chi(1).parent()
@@ -56,8 +38,8 @@ def form_CM_dict(fs,prec,Nmin=None,Nmax=None):
 					data = (act_galois_ps(f,sigma),chi,phi)
 					if CM[chi].count(data) == 0:
 						CM[chi] += [(act_galois_ps(f,sigma),chi,phi)]
-			# else:
-			# 	print "SKIPPING BECAUSE OF BIG GALOIS GROUP",chi,r
+			else:
+				print "SKIPPING BECAUSE OF BIG GALOIS GROUP: ",f,eps
 		r += 1
 		if eps.modulus() > Nmax:
 			break 

@@ -512,6 +512,7 @@ class wt1(SageObject):
 			phi = embedding from Q(chi) to K_f
 			m = dimension of the generalized eigenspace corresponding to this CM form 
 		"""
+		sturm = STURM
 		self.output(5,"Computing CM forms")
 		chi = self.neben()
 		N = chi.modulus()
@@ -526,6 +527,10 @@ class wt1(SageObject):
 				for F in CM[chi_old]:
 					f = F[0]
 					phi = F[2]
+					if f.degree() < sturm:  #! this is really dumb because maybe precision is correct but 
+											#! the fourier expansion just has lots of zeroes
+											#! but only a problem in small levels
+						f = extend_qexpansion(f,chi_old.change_ring(phi),sturm+2)
 					olds = oldspan(f,N,chi_old,phi)
 					### oldspan returns 3-tuples: (form,phi,multiplicity)
 					for g in olds:
@@ -631,7 +636,7 @@ class wt1(SageObject):
 		self.remove_non_Artin_CM(p)
 		self.remove_non_Artin_old_exotic(p)
 		self.compute_bounds()
-		self.output(5,"   After intersections the the lower bound is "+str(self.lower_bound())+" and the upper bound is "+str(self.upper_bound()))
+		self.output(5,"   After intersections the lower bound is "+str(self.lower_bound())+" and the upper bound is "+str(self.upper_bound()))
 		return 
 
 	def cut_down_to_unique(self,verbose=false):
