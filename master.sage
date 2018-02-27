@@ -11,8 +11,8 @@ except NameError:
 	print "loading CM dictionary"
 	CM = load("DATA/CM_forms.1-1000")
 	attach("sage-instructions.sage")
-	print "loading Buzzard-Lauder CM database"
-	load("DATA/dihedral_forms.sage")
+#	print "loading Buzzard-Lauder CM database"
+#	load("DATA/dihedral_forms.sage")
 	already_loaded = true
 
 FC = weight_one_FC()
