@@ -69,11 +69,11 @@ def wt1_space_modp(p,chi,lower=0,verbose=False,sturm=None,log=None):
 	output(log,verbose,1,"    After decomposition into eigenspaces the upper bound is "+str(D.upper_bound()))
 		
 	if D.upper_bound() == lower:
-		return weight_one_space([],chi)
+		return weight_one_space([],chi),false
 
-	S = D.wt1_space(sturm=sturm)
+	S,need_more_sturm = D.wt1_space(sturm=sturm)
 
-	return S
+	return S,need_more_sturm
 
 def decompose(M,chi,sturm,exclude,p,log=None,verbose=false):
 	N = chi.modulus()
