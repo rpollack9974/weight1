@@ -126,6 +126,7 @@ class EigenDecomp(SageObject):
 
 		h0 = {}
 		fail = false
+		need_more_sturm = False
 		### Getting minpolys away from p
 		for q in h.keys():
  			if exclude.count(q) == 0 and q != p:
@@ -135,23 +136,26 @@ class EigenDecomp(SageObject):
 					fail = true
 
 		if exclude.count(p) == 0 and p < sturm:
-			assert N % p == 0 or len(h[p].factor()) <= 2, "have not decomposed far enough (seen at p)"
-			assert N % p != 0 or len(h[p].factor()) <= 1, "have not decomposed far enough (seen at p)"
-			pi_alpha = h[p].factor()[0][0]
-			kchi = self[j].base_ring()
-			l,phibar = pi_alpha.splitting_field('a',map=true)
-			alpha = hom_to_poly(pi_alpha,phibar).roots()[0][0]
-			if N % p != 0:
-				ap = alpha + phibar(kchi(chi(p)))/alpha
+			# assert N % p == 0 or len(h[p].factor()) <= 2, "have not decomposed far enough (seen at p)"
+			# assert N % p != 0 or len(h[p].factor()) <= 1, "have not decomposed far enough (seen at p)"
+			if (N % p != 0 and len(h[p].factor()) > 2) or (N % p == 0 and len(h[p].factor()) > 1):
+				need_more_sturm = True
 			else:
-				ap = alpha
-			fp = minpoly_over(ap,kchi,phibar)
-			h0[p] = FC.possible_Artin_polys(fp,chi,p,p,upper=upper)
-#			print p,h0[p]
-			if len(h0[p]) == 0:
-				fail = true
+				pi_alpha = h[p].factor()[0][0]
+				kchi = self[j].base_ring()
+				l,phibar = pi_alpha.splitting_field('a',map=true)
+				alpha = hom_to_poly(pi_alpha,phibar).roots()[0][0]
+				if N % p != 0:
+					ap = alpha + phibar(kchi(chi(p)))/alpha
+				else:
+					ap = alpha
+				fp = minpoly_over(ap,kchi,phibar)
+				h0[p] = FC.possible_Artin_polys(fp,chi,p,p,upper=upper)
+	#			print p,h0[p]
+				if len(h0[p]) == 0:
+					fail = true
 			
-		return weight_one_form(chi,h0,space=EigenDecomp(self[j],self.chi())),not fail
+		return weight_one_form(chi,h0,space=EigenDecomp(self[j],self.chi())),not fail,need_more_sturm
 
 	def upper_bound(self):
 		p = self.p()
@@ -205,11 +209,11 @@ class EigenDecomp(SageObject):
 			e = 1
 		forms = []
 		for r in range(self.num_spaces()):
-			f,bool = self.lift_to_char0_minpolys(r,sturm=sturm)
-			if bool:
+			f,bool,need_more_sturm = self.lift_to_char0_minpolys(r,sturm=sturm)
+			if bool and not need_more_sturm:
 				forms += floor(self[r].dimension()/e) * [f]
 
-		return weight_one_space(forms,self.chi())
+		return weight_one_space(forms,self.chi()),need_more_sturm
 	
 
 def unique(d):

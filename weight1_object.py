@@ -616,13 +616,22 @@ class wt1(SageObject):
 
 	def use_new_prime(self,p=None):
 		"""computes mod p modular symbols in weight p (for p = next good prime) and incorates this info into spaces"""
+		global STURM
 		if p == None:
 			p = self.next_good_prime()
 		sturm = STURM
 		chi = self.neben()
 		N = chi.modulus()
 
-		Sp = wt1_space_modp(p,chi,verbose=self.verbose_level(),log=LOG_FILE)
+		Sp,need_more_sturm = wt1_space_modp(p,chi,verbose=self.verbose_level(),log=LOG_FILE)
+		delta = 0
+		while need_more_sturm:
+			STURM = STURM + 10
+			self.output(5,"Hecke at p has too many roots.  Increasing STURM to "+str(STURM)+" and starting again.")
+			delta += 10
+			Sp,need_more_sturm = wt1_space_modp(p,chi,verbose=self.verbose_level(),log=LOG_FILE)
+		STURM = STURM - delta
+
 
 		for Sq in self.spaces():
 			Sp = Sp.intersect(Sq)
