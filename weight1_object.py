@@ -162,12 +162,13 @@ class wt1(SageObject):
 		# 	return
 
 		self.output(5,"*********************************PHASE 2*********************************")
-		need_more_sturm = self.verify_remaining_forms()
+		need_more_sturm,new_sturm = self.verify_remaining_forms()
 		if need_more_sturm:
-			STURM = STURM + 10
+			old_sturm = STURM
+			STURM = new_sturm
 			self.output(5,"STARTING OVER WITH STURM = "+str(STURM)+"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 			self = wt1(self.neben(),verbose=self.verbose_level())
-			STURM = STURM - 10
+			STURM = old_sturm
 		self.add_data_to_exotic()
 		return 
 
@@ -1143,19 +1144,23 @@ class wt1(SageObject):
 		"""
 		chi = self.neben()
 		Qchi = self.Qchi()
-		need_more_sturm = false
+		N = chi.modulus()
 		need_more_primes = false
+		need_more_sturm = false
+		new_sturm = 0
 		self.output(5,"Running through remaining forms and verifying that they come from weight 1")
 		S = self.unique_space()
 		finished_forms = []
 		for f in S.forms():
 			if self.unique_space().multiplicity(f) > 0:
-				done = false
 				self.output(5,"Working with the form: "+str(f))
 				self.output(5,"    ----")
 				primes_used = []
-
-				while not done:
+				first_time = true
+				while first_time or need_more_primes:
+					first_time = false
+					if need_more_primes:
+						self.output(5,"Must get another prime to help with computation")
 					p,bool = self.find_new_prime(f,primes_used,must=need_more_primes)
 					if bool:
 						#self.output(5,"A:grabbing another prime to help with computation")
@@ -1163,8 +1168,7 @@ class wt1(SageObject):
 						need_more_primes = false
 						T = self.unique_space()
 						if T.multiplicity(f) == 0:
-							done = true
-							self.output(5,"Form eliminated")
+							self.output(5,"Form eliminated with new prime data")
 							break
 					p = self.find_best_prime_for_form(f)
 					S = self.space_at_p(p) #!  is it unique??
@@ -1172,50 +1176,103 @@ class wt1(SageObject):
 					for g in S.forms():
 						if f == g:
 							break
+					M,phibar,phibar_lf,fail = self.cut_out_full_eigenspace(g)
+					if fail:
+						self.output(5,"Fails galois conjugacy test")
+						self.fully_excise_form(f.hecke())
+						self.compute_bounds()
+						break
+					if N % p != 0:
+						e = 2
+					else:
+						e = 1
+					Dp = full_decomposition(M,expected_dimension=e)  ##! will go up to full sturm if there is a congruence
+												##! can do better
 					## compute first to dimension in weight 2 which is a lower bound for what we ultimately need
 					d = dimension_cusp_forms(chi**2,2)
-					self.output(5,"  Computing e-vals up to "+str(d))
-					evs,space_info,phi,fail,need_more_primes,need_more_sturm = self.find_prime_FCs(g,d)
-					if not fail and not need_more_primes and not need_more_sturm:
-						## if this succeeds, compute now to the true bound given below by weak_sturm
-						s = cputime()
-						B = self.find_integral_basis(phi)
-						self.output(5,"IB-Time: "+str(cputime(s)))
-						weak_sturm = max([b.valuation() for b in B]) + 2  #!
-						self.output(5," Computing e-vals up to "+str(weak_sturm))
-						evs_rest,W,phi,fail,need_more_primes,need_more_sturm = \
-								self.find_prime_FCs(g,weak_sturm,min_p=max(evs.keys())+1,space_info=space_info)
-					if need_more_sturm:
-						break
-					if fail:
-						self.fully_excise_form(f.hecke())
-						done = true
-					elif not need_more_primes:
-						evs = merge_disjoint_dicts(evs,evs_rest)
-						fq = form_qexp_from_evs(evs,chi,phi,weak_sturm)
-						fq,bool = self.verify_q_expansion(fq,phi,B)
-						if bool:
-							fqs = galois_conjugates(fq,self.neben(),phi)
-							for data in fqs:
-								self.add_exotic_form(data)
-						min_mult = min([S.hecke_multiplicity(f.hecke()) for S in self.spaces() if S.unique()])
-						Kf = fq[0].parent()
-						self.output(5,"Checking multiplicity.  Multiplicity from found form: "+str(Kf.degree() / Qchi.degree())+ \
-										". Multiplicity present in space: "+str(min_mult))
-						if min_mult == Kf.degree() / Qchi.degree():
-							self.fully_excise_form(f.hecke())
-						else:
-							need_more_primes = true
-							# s = open('DATA/exotic_multiplicity_problem','a')
-							# s.write(str(self.neben())+'\n')
-							# s.close()
-						done = true
-					else:
-						self.output(5,"Grabbing another prime to help with computation")
-				if not done:
-					break
+					upper = sum([D.dimension() for D in Dp])  #! maybe dividing by 2?
+					for D in Dp: ## each D should be 1-dimension or Sturm-proven to be simple
+						evs,phi,fail,need_more_primes,need_more_sturm,new_sturm = \
+							 		self.find_prime_FCs_from_MS_space(D,g,phibar,phibar_lf,sturm=d,bound=M.dimension())
+						if not fail and not need_more_primes and not need_more_sturm:
+							## if this succeeds, compute now to the true bound given below by weak_sturm
+							s = cputime()
+							B = self.find_integral_basis(phi)
+							self.output(5,"IB-Time: "+str(cputime(s)))
+							weak_sturm = max([b.valuation() for b in B]) + 2  #!
+							self.output(5," Computing e-vals up to "+str(weak_sturm))
+							evs_rest,phi,fail,need_more_primes,need_more_sturm,new_sturm = \
+									self.find_prime_FCs_from_MS_space(D,g,phibar,phibar_lf,sturm=weak_sturm,bound=d,min_p=max(evs.keys())+1)
 
-		return need_more_sturm
+						if not fail and not need_more_primes and not need_more_sturm:
+							evs = merge_disjoint_dicts(evs,evs_rest)
+							fq = form_qexp_from_evs(evs,chi,phi,weak_sturm)
+							fq,bool = self.verify_q_expansion(fq,phi,B)
+							if bool:
+								min_mult = min([S.hecke_multiplicity(f.hecke()) for S in self.spaces() if S.unique()])
+								Kf = fq[0].parent()
+								self.output(5,"Checking multiplicity.  Multiplicity from found form: "+str(Kf.degree() / Qchi.degree())+ \
+												". Multiplicity present in space: "+str(min_mult))
+								if min_mult == Kf.degree() / Qchi.degree():
+									self.output(5,"Multiplicities are fine.  Recording form.")
+									fqs = galois_conjugates(fq,self.neben(),phi)
+									for data in fqs:
+										self.add_exotic_form(data)
+									self.fully_excise_form(f.hecke())
+									self.compute_bounds()
+									break
+								else:
+									need_more_primes = true  #! This could case an infinte loop I think if STURM is too small so that we haven't generated Hecke field yet
+									# s = open('DATA/exotic_multiplicity_problem','a')
+									# s.write(str(self.neben())+'\n')
+									# s.close()
+						if need_more_sturm:
+							break
+			if need_more_sturm:
+				return need_more_sturm,new_sturm
+			if self.is_fully_computed():
+				break					
+
+		return need_more_sturm,new_sturm
+
+	def cut_out_full_eigenspace(self,f):
+		p = f.p()
+		lf,phibar,phibar_lf = f.modp_FC_field(p,alpha_p=True)
+		phibar_full = compose(phibar_lf,phibar)
+		Rf = PolynomialRing(lf,'x')
+		x = Rf.gen()
+		chi = self.neben()
+		pchi = FC.pchi(p,chi)
+		kchi = pchi.residue_field()
+		Rchi = PolynomialRing(kchi,'x')
+		N = chi.modulus()
+
+		chip = chi.change_ring(phibar).change_ring(phibar_lf)
+		if lf.degree() > 1:
+			self.output(5,"    ##############Using extension of F_"+str(p)+"= of degree "+str(lf.degree()))
+		M = ModularSymbols(chip,p,1,lf).cuspidal_subspace()
+		if N % p != 0:
+			min_degree = 2 * f.degree(exclude=[p])
+		else:
+			min_degree = f.degree(exclude=[p])
+		for q in f.primes():
+			hq = hom_to_poly(Rchi(f[q][0]),phibar_full)
+			T = M.hecke_operator(q)
+			if q == p and N % p != 0:
+				possible_a_ps = hq.roots()
+				hp = 1
+				for a_p in possible_a_ps:
+					hp *= x**2-a_p[0]*x+phibar_full(kchi(chi(p)))
+				hq = hp
+			M = (hq.substitute(T)).kernel()
+			if M.dimension() < min_degree:
+				fail = True
+				return 0,0,0,fail
+		fail = false
+		return M,phibar,phibar_lf,fail
+
+
+
 
 	def verify_q_expansion(self,fq,phi,B):
 		"""verifies that the q-expansion fq comes from a bonafide weight 1 form
@@ -1402,7 +1459,8 @@ class wt1(SageObject):
 
 		return evs_modp,hecke,fail,need_more_primes
 
-	def find_prime_FCs(self,f,sturm,space_info=None,min_p=None):
+#evs,phi,fail,need_more_primes = self.find_prime_FCs_from_MS_space(D,phibar,sturm=d,bound=d)
+	def find_prime_FCs_from_MS_space(self,D,f,phibar,phibar_lf,sturm,bound,min_p=None):
 		"""computes the q-expansion of the Hecke-eigensystem f
 
 		Returns 4 items: 
@@ -1413,43 +1471,80 @@ class wt1(SageObject):
 
 		If either boolean is true, nonsense is returned in the first two slots
 		"""
-		p = f.p()
+		p = D.base_ring().characteristic()
 		chi = self.neben()
 		Qchi = self.Qchi()
 		N = chi.modulus()
-#		strong_sturm = ceil(Gamma0(N).index() / 3)  ###! CHECK THIS!!!!
 		need_more_primes = false
+		fail = false
 		need_more_sturm = false
-
-		if space_info == None:
-			### We form the needed mod p modular symbol eigenspace on which Hecke acts by a scalar
-			self.output(5,"    Cutting out eigenspace with p="+str(p)+" to precision "+str(sturm))
-			M,phibar,phibar_lf = self.cut_out_eigenspace(f)
-			#! (I think we don't need this -- it proves the form doesn't exist)
-			# assert M.dimension() != 0,"eigenspace gone!"
-			self.output(5,"    finished cutting down.")
-		else:
-			M = space_info[0]
-			phibar = space_info[1]
-			phibar_lf = space_info[2]
-		if M.dimension() == 0:
-			self.output(5,"    Eigenspace was 0-dimensional")
-			fail = true
-			return 0,0,0,fail,need_more_primes,need_more_sturm
-		# if M.dimension() > 1:
-		# 	self.output(5,"Too eigenspace too big")
-			#! assert 0==1,"didn't cut down far enough.  need bigger sturm"
+		new_sturm = 0
+		kchi = phibar.domain()
+		kf = phibar_lf.domain()
+		Kf,phi = f.FC_field()
+		fs = self.all_copies_of_form(f)
 
 		### Simulateously extracting the mod p eigenvalues from this space and finding Artin minimal polynomials
 		### that lifts of these mod p eigenvalues satisfy.  This may involve combining mod p information for 
 		### various p and may prove to show that the form is actually now Artin
-		evs_modp,hecke,fail,need_more_primes = self.extract_modp_evs_and_hecke_polys(f,M,phibar,phibar_lf,sturm,min_p=min_p)
-		if fail or need_more_primes:
-			if need_more_primes:
-				self.output(5,"Min polys not uniquely determined: need to compute with more primes")
-			if fail:
+		evs_modp = {}
+		hecke = {}
+		for q in primes(min_p,sturm+1):
+			self.output(5,"    --in extract_hecke_polys computing mod "+str(p)+" eigenvalue at q="+str(q))
+			if q != p or N % p == 0:
+				a_q = D.hecke_polynomial(q).roots()[0][0]
+				evs_modp[q] = [y for y in kf if phibar_lf(y)==a_q][0] # a_q is in k_f and not l_f
+			else:
+				alpha = D.hecke_polynomial(q).roots()[0][0]
+				a_p = alpha + phibar_lf(phibar(kchi(chi(p))))/alpha
+				evs_modp[q] = [y for y in kf if phibar_lf(y)==a_p][0] # a_p is in k_f and not l_f
+			pi_q = minpoly_over(evs_modp[q],kchi,phibar)
+			hecke[q] = FC.possible_Artin_polys(pi_q,chi,q,p,upper=bound)
+			if len(hecke[q]) == 0:
+				fail = True
 				self.output(5,"Not Artin")
-			return 0,0,0,fail,need_more_primes,need_more_sturm
+				return 0,0,fail,need_more_primes,need_more_sturm,0
+			if len(hecke[q]) > 1:
+				for g in fs:
+					if g.p() != p and g.p() != q:
+						self.output(5,"    ----not uniquely determined with p="+str(p)+": using p="+str(g.p())+" to help")
+						pg = Kf.prime_above(g.p()) # Note that Kf = Kg
+						kg = pg.residue_field()
+						for Mg in g.space():
+							pi_qs = []
+							kchi_g = Mg.base_ring()
+							fq = Mg.hecke_polynomial(q)
+							if q != g.p():
+								assert len(fq.factor()),"Not decomposed enough at "+str(q)  #! need to address this
+								fq = fq.factor()[0][0]
+								pi_qs += FC.possible_Artin_polys(fq,chi,q,g.p(),upper=bound)
+							##! BAILING FOR NOW ON q = g.p()
+							# else:
+							# 	for dd in fq.factor():
+							# 		pi_alpha = dd[0]
+							# 		lg,phibar_g = pi_alpha.splitting_field('a',map=True)
+							# 		alpha = hom_to_poly(pi_alpha,phibar_g).roots()[0][0]
+							# 		if N % g.p() != 0:
+							# 			ap = alpha + phibar_g(kchi_g(chi(g.p())))/alpha
+							# 		else:
+							# 			ap = alpha
+							# 	fp = minpoly_over(ap,kchi_g,phibar_g)
+							# 	pi_qs = FC.possible_Artin_polys(fp,chi,g.p(),g.p(),upper=bound)
+								self.output(100,"With helping prime "+str(g.p())+" T_"+str(q)+" found "+str(pi_qs))
+						S1 = set(hecke[q])
+						S2 = set(pi_qs)
+						hecke[q] = list(S1.intersection(S2))
+						if len(hecke[q]) == 0:
+							fail = True
+							self.output(5,"Not Artin")
+							return evs_modp,hecke,fail,need_more_primes,need_more_sturm,0
+						elif len(hecke[q]) == 1:
+							break
+				if len(hecke[q])>1:
+					need_more_primes = true
+					self.output(5,"Min polys not uniquely determined: need to compute with more primes")
+					return evs_modp,hecke,fail,need_more_primes,need_more_sturm,0
+
 
 		## We now have kf as an abstract finite extension of kchi.  We also can pick a prime pf of Kf over p.
 		## Then the residue field of pf, say kf_global, if isomorphic to kf.  We pick an isomophism j:kf_global-->kf
@@ -1483,16 +1578,17 @@ class wt1(SageObject):
 			if len(possible_lifts)==0:
 				###!! Hecke field is too small needed a larger sturm bound
 				need_more_sturm = True
+				new_sturm = q + 1
 				self.output(5,"Hecke field was too small.  Need larger STURM value")
 				# s = open("DATA/Sturm_fail",'a')
 				# s.write(str(chi)+'\n')
 				# s.close()
-				return 0,0,0,fail,need_more_primes,need_more_sturm
+				return 0,0,0,fail,need_more_primes,need_more_sturm,new_sturm
 			assert len(possible_lifts)>0, "no congruent root found "+str(rs)+str(fq)
 			assert len(possible_lifts)==1, "lift not unique!"
 			evs[q] = possible_lifts[0]
 
-		return evs,(M,phibar,phibar_lf),phi,fail,need_more_primes,need_more_sturm
+		return evs,phi,fail,need_more_primes,need_more_sturm,new_sturm
 	
 	def multiplier(self,p):
 		"""returns 2 if p does not divide the level and 1 if it does"""

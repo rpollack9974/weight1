@@ -191,7 +191,7 @@ class weight_one_form(SageObject):
 		"""
 		return self.hecke().keys()
 
-	def all_possible_hecke(self):
+	def all_possible_hecke(self,exclude=[]):
 		"""
 		Returns all possible minimal polynomials of all Hecke-eigenvalues stored.
 
@@ -202,10 +202,10 @@ class weight_one_form(SageObject):
         
 		All possible minimal polynomials of all Hecke-eigenvalues stored --- output is list of lists
 		"""
-		return [self[q] for q in self.primes()]
+		return [self[q] for q in self.primes() if exclude.count(q)==0]
 
-	def degree(self):
-		v = self.all_possible_hecke()
+	def degree(self,exclude=[]):
+		v = self.all_possible_hecke(exclude=exclude)
 		w = []
 		for P in v:
 			w += P
