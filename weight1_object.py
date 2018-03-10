@@ -613,7 +613,7 @@ class wt1(SageObject):
 			self.output(5,"No good choice --- seeking out best alternative")
 			while N.valuation(p) != Nc.valuation(p) or fail_efficiency_test(p,chi) or self.primes_used().count(p) > 0:
 				p = next_prime(p)
-				return ZZ(p)
+			return ZZ(p)
 
 	def use_new_prime(self,p=None):
 		"""computes mod p modular symbols in weight p (for p = next good prime) and incorates this info into spaces"""
@@ -757,7 +757,7 @@ class wt1(SageObject):
 		N = chi.modulus()
 		Qchi = self.Qchi() 
 		success = false
-		while not success:
+		while not success and not self.is_fully_computed():
 			hecke_used = []
 			if tag == "CM":
 				forms = self.CM()
@@ -1182,11 +1182,15 @@ class wt1(SageObject):
 						self.fully_excise_form(f.hecke())
 						self.compute_bounds()
 						break
-					if N % p != 0:
-						e = 2
-					else:
-						e = 1
+					e = 1
+					# if N % p != 0:
+					# 	e = 2
+					# else:
+					# 	e = 1
+					self.output(5,"  Forming full Hecke decomposition")
 					Dp = full_decomposition(M,expected_dimension=e)  ##! will go up to full sturm if there is a congruence
+																	 ##! No worse I think this caused the 748 problem
+																	 ##! If hecke ev at p is doubled will also go all the way up
 												##! can do better
 					## compute first to dimension in weight 2 which is a lower bound for what we ultimately need
 					d = dimension_cusp_forms(chi**2,2)
@@ -1248,6 +1252,7 @@ class wt1(SageObject):
 		N = chi.modulus()
 
 		chip = chi.change_ring(phibar).change_ring(phibar_lf)
+		self.output(5,"  Cutting out eigenspace of this form")
 		if lf.degree() > 1:
 			self.output(5,"    ##############Using extension of F_"+str(p)+"= of degree "+str(lf.degree()))
 		M = ModularSymbols(chip,p,1,lf).cuspidal_subspace()
@@ -1256,6 +1261,7 @@ class wt1(SageObject):
 		else:
 			min_degree = f.degree(exclude=[p])
 		for q in f.primes():
+			self.output(5,"    Using q="+str(q))
 			hq = hom_to_poly(Rchi(f[q][0]),phibar_full)
 			T = M.hecke_operator(q)
 			if q == p and N % p != 0:

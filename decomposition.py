@@ -5,6 +5,7 @@ def full_decomposition(Ms,expected_dimension=1):
 		sturm = Ms[0].sturm_bound()
 		for q in primes(sturm+1):
 			max_dim = max([M.dimension() for M in Ms])
+			print "   ",q,"max dim =",max_dim
 			if max_dim == expected_dimension:
 				return Ms
 			Ms = full_decomposition_at_prime(Ms,q)
